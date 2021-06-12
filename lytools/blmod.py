@@ -10,6 +10,7 @@ from bpy.props import (
     StringProperty,
     EnumProperty,
     FloatProperty,
+    FloatVectorProperty,
     IntProperty,
     PointerProperty
 
@@ -50,6 +51,11 @@ def UPIMPATH(self, context):
     node=GTBKR_NODE("BAKE_FROM"); lyt=context.scene.lytools;
     node.image.filepath=lyt.bkr_f1+'albedo.png';
 
+    rtpath=node.image.filepath;
+    rtpath="_".join(rtpath.split("_")[:-1])
+    if os.path.exists(rtpath+".lytx"):
+        LDLYTX(rtpath, lyt);
+
 #   ---     ---     ---     ---     ---
 
 def STNSNG(self, context):
@@ -57,14 +63,64 @@ def STNSNG(self, context):
     for i in range(4):
         node.inputs[1+i].default_value=getattr(lyt, f"bkr_nsng{i}");
 
+    node=GTBKR_NODE("ADDROUGH"); node.inputs[1].default_value=lyt.bkr_nsng4;
+
 def STBKSIZE(self, context):
     lyt=context.scene.lytools;
-    context.scene.render.resolution_x=lyt.bkr_size;
-    context.scene.render.resolution_y=lyt.bkr_size;
+    context.scene.render.resolution_x=lyt.bkr_size*lyt.bkr_res;
+    context.scene.render.resolution_y=lyt.bkr_size*lyt.bkr_res;
 
 #   ---     ---     ---     ---     ---
 
+def UPMET(self, context):
+
+    lyt=context.scene.lytools; node=GTBKR_NODE("METMASK");
+
+    node.inputs[1].default_value=lyt.bkr_metmask;
+    node.inputs[2].default_value=lyt.bkr_metbase;
+    node.inputs[3].default_value=lyt.bkr_mettol;
+
+#   ---     ---     ---     ---     ---
+
+viewModes = [
+
+    ("normal", "Normal", "Show calculated normal map"),
+    ("albedo", "Albedo", "Show base color map"       ),
+    ("rough",  "Rough",  "Show roughness map"        ),
+    ("metal",  "Metal",  "Show metalness mask"       )
+
+];
+
+viewModes_nd = {
+
+    "normal": "NBAKE_SETTINGS",
+    "albedo": "BAKE_FROM",
+    "rough" : "BKROUGH",
+    "metal" : "METMASK"
+
+}
+
+def UPBKRVIEW(self, context):
+
+    lyt=context.scene.lytools; links=GTBKR_LINKS();
+
+    node=GTBKR_NODE(viewModes_nd[lyt.bkr_view]);
+    out_node=GTBKR_NODE("EMITOUT");
+
+    links.new(node.outputs[0], out_node.inputs[0]);
+
 class LYT_SceneSettings(PropertyGroup):
+
+    bkr_view=EnumProperty (
+
+        items       = viewModes,
+        default     = "normal",
+        update      = UPBKRVIEW,
+
+        name        = "Cathegory",
+        description = "Root folder to pick from"
+
+    );
 
     bkr_f0=EnumProperty (
 
@@ -114,7 +170,7 @@ class LYT_SceneSettings(PropertyGroup):
 
     bkr_nsng2=FloatProperty (
 
-        name        = "Base",
+        name        = "Softness",
         description = "Softens the resulting normal & rough values",
 
         default     = 0.0,
@@ -138,10 +194,23 @@ class LYT_SceneSettings(PropertyGroup):
 
     );
 
+    bkr_nsng4=FloatProperty (
+
+        name        = "Rough modifier",
+        description = "Adds to roughness post normal calculations",
+
+        default     = 0.0,
+        min         = -1.0,
+        max         = 1.0,
+
+        update      = STNSNG
+
+    );
+
     bkr_size=IntProperty (
 
-        name        = "Resolution",
-        description = "Sets bake size",
+        name        = "Size",
+        description = "Final bake size, after de-scaling",
 
         default     = 256,
         min         = 2,
@@ -150,6 +219,144 @@ class LYT_SceneSettings(PropertyGroup):
         update      = STBKSIZE
 
     );
+
+    bkr_res=IntProperty (
+
+        name        = "Scale",
+        description = "Resolution multiplier, renders at larger size then scales down",
+
+        default     = 1,
+        min         = 1,
+        max         = 16,
+
+        update      = STBKSIZE
+
+    );
+
+    bkr_metmask=FloatVectorProperty (
+
+        name        = "Metal color",
+        description = "Color for metallic mask",
+        subtype     = 'COLOR',
+
+        size        = 4,
+        default     = [1.0,1.0,1.0,1.0],
+        update      = UPMET
+
+    );
+
+    bkr_metbase=FloatProperty (
+
+        name        = "Metal base",
+        description = "Multiplier for metallic",
+
+        default     = 0.0,
+        min         = 0.0,
+        max         = 2.0,
+
+        update      = UPMET
+
+    );
+
+    bkr_mettol=FloatProperty (
+
+        name        = "Metal tolerance",
+        description = "Makes non-metallic colors more metallic",
+
+        default     = 0.0,
+        min         = 0.0,
+        max         = 2.0,
+
+        update      = UPMET
+
+    );
+
+#   ---     ---     ---     ---     ---
+
+LYT_ATTRS=([
+
+    "bkr_nsng0",
+    "bkr_nsng1",
+    "bkr_nsng2",
+    "bkr_nsng3",
+    "bkr_nsng4",
+
+    "bkr_size",
+    "bkr_res",
+    "bkr_metmask",
+    "bkr_metbase",
+    "bkr_mettol"
+
+]);
+
+def SVLYTX(rtpath, lyt):
+    d={}; rtpath=rtpath[:-1];
+    for k in LYT_ATTRS:
+        if k == "bkr_metmask":
+            d[k]=lyt.bkr_metmask[:];
+        else:
+            d[k]=getattr(lyt, k);
+
+    path=rtpath+".lytx"; d=(str(d)).replace(" ", "");
+    with open(path, "w+") as file: file.write(d);
+
+def LDLYTX(rtpath, lyt):
+    s=""; path=rtpath+".lytx";
+    with open(path, "r") as file:
+        s=file.read();
+
+    d=eval(s);
+    for k in LYT_ATTRS:
+        if k == "bkr_metmask":
+            lyt.bkr_metmask[:]=d[k][:];
+        else:
+            setattr(lyt, k, d[k]);
+
+#   ---     ---     ---     ---     ---
+
+class LYT_SVBUTT(Operator):
+
+    bl_idname      = "lytbkr.svlytx";
+    bl_label       = "Saves settings for this material";
+
+    bl_description = "Save current settings to a file associated with this material";
+
+    def execute(self, context):
+
+        lyt=context.scene.lytools;
+
+        node=GTBKR_NODE("BAKE_FROM");
+        rtpath=node.image.filepath;
+        rtpath="_".join(rtpath.split("_")[:-1])+"_"
+
+        SVLYTX(rtpath, lyt);
+        self.report({'INFO'}, f"Material settings saved to <{rtpath[:-1]+'.lytx'}>");
+
+        return {'FINISHED'};
+
+class LYT_LDBUTT(Operator):
+
+    bl_idname      = "lytbkr.ldlytx";
+    bl_label       = "Loads settings for this material";
+
+    bl_description = "Load settings from a file associated with this material";
+
+    def execute(self, context):
+
+        lyt=context.scene.lytools;
+
+        node=GTBKR_NODE("BAKE_FROM");
+        rtpath=node.image.filepath;
+        rtpath="_".join(rtpath.split("_")[:-1]);
+
+        if os.path.exists(rtpath+".lytx"):
+            LDLYTX(rtpath, lyt);
+            self.report({'INFO'}, f"Loaded <{rtpath+'.lytx'}>");
+
+        else:
+            self.report({'WARNING'}, f"File <{rtpath+'.lytx'}> not found!");
+
+        return {'FINISHED'};
 
 #   ---     ---     ---     ---     ---
 
@@ -178,6 +385,7 @@ class LYT_BKOGL(Operator):
         rtpath=node.image.filepath;
         rtpath="_".join(rtpath.split("_")[:-1])+"_"
 
+        SVLYTX(rtpath, lyt);
         usystem.use_mipmaps=1;
 
         context.scene.camera=context.scene.objects["CANVAS_CAM"];
@@ -189,6 +397,9 @@ class LYT_BKOGL(Operator):
 #   ---     ---     ---     ---     ---
 # render normal
 
+        context.scene.render.engine='CYCLES';
+
+        print("Baking normal... ");
         context.scene.render.image_settings.file_format='PNG';
         bpy.ops.render.opengl();
 
@@ -201,23 +412,26 @@ class LYT_BKOGL(Operator):
         node=GTBKR_NODE("NBAKE_FROM");
         node.image.source='FILE'; node.image.filepath=path;
 
-        node=GTBKR_NODE("AOBAKE");
-        links.new(node.outputs[0], out_node.inputs[0]);
+        context.scene.render.engine='BLENDER_RENDER';
+
+        context.scene.cycles.bake_type='EMIT';
+
+        print("Baking AO... ");
+        bpy.ops.render.opengl(); path=rtpath+"tmp.png";
+        bpy.data.images["Render Result"].save_render(path);
 
         node=GTBKR_NODE("AO_BAKETO");
-        node.image.generated_width=lyt.bkr_size;
-        node.image.generated_height=lyt.bkr_size;
-
-        context.scene.cycles.bake_type='EMIT'; SLBKR_NODE("AO_BAKETO");
-
-        bpy.ops.object.bake(type='EMIT');
+        node.image.source='FILE'; node.image.filepath=path;
 
 #   ---     ---     ---     ---     ---
 # combine ao, rough & metalness into orm
 
+        context.scene.render.engine='CYCLES';
+
         node=GTBKR_NODE("BKORM");
         links.new(node.outputs[0], out_node.inputs[0]);
 
+        print("Combining ORM map... ");
         path=rtpath+"orm.png"; bpy.ops.render.opengl();
         bpy.data.images["Render Result"].save_render(path);
 
@@ -230,16 +444,32 @@ class LYT_BKOGL(Operator):
         context.scene.cycles.bake_type='EMIT'; SLBKR_NODE("G_BAKETO");
 
         node=GTBKR_NODE("G_BAKETO");
-        node.image.generated_width=lyt.bkr_size;
-        node.image.generated_height=lyt.bkr_size
+        node.image.generated_width=lyt.bkr_size*lyt.bkr_res;
+        node.image.generated_height=lyt.bkr_size*lyt.bkr_res;
 
+        print("Baking curvature... ");
         bpy.ops.object.bake(type='EMIT');
 
-        path=rtpath+"curv.png"; node.image.save_render(path);
+        path=rtpath+"curv.png";
+        node.image.scale(lyt.bkr_size, lyt.bkr_size); node.image.save_render(path);
 
 #   ---     ---     ---     ---     ---
 
-        usystem.use_mipmaps=umm_old;
+        print("Resizing... ");
+        node=GTBKR_NODE("NBAKE_FROM");
+        node.image.scale(lyt.bkr_size, lyt.bkr_size); node.image.save();
+
+        node.image.filepath=rtpath+"orm.png";
+        node.image.scale(lyt.bkr_size, lyt.bkr_size); node.image.save();
+
+        print("Cleaning up temp files... ");
+        node=GTBKR_NODE("AO_BAKETO");
+        path=node.image.filepath; node.image.source='GENERATED';
+
+        os.system("@del %s"%path);
+
+        print("Done!\n");
+        usystem.use_mipmaps=umm_old; UPBKRVIEW(self, context);
         return {'FINISHED'};
 
 #   ---     ---     ---     ---     ---
@@ -264,25 +494,49 @@ class LYT_renderPanel(Panel):
 
         scene  = context.scene;
         lyt    = scene.lytools;
-        row    = layout.row();
+        row    = layout.row(1);
 
+        row.prop_enum(lyt, "bkr_view", "normal");
+        row.prop_enum(lyt, "bkr_view", "albedo");
+        row.prop_enum(lyt, "bkr_view", "rough");
+        row.prop_enum(lyt, "bkr_view", "metal");
+
+        layout.separator(); row=layout.row();
         row.prop(lyt, "bkr_f0"); row=layout.row();
+
         if lyt.bkr_f0:
             row.prop(lyt, "bkr_f1");
 
             if lyt.bkr_f1:
 
+                layout.separator(); row=layout.row(1);
+
+                row.operator("lytbkr.svlytx", text = "SAVE", icon = "SAVE_COPY");
+                row.operator("lytbkr.ldlytx", text = "LOAD", icon = "FILE_REFRESH");
+
                 layout.separator();
+
+                row=layout.row(); row.label("Normal/Rough settings:");
 
                 row=layout.row(); row.prop(lyt, "bkr_nsng0");
                 row=layout.row(); row.prop(lyt, "bkr_nsng1");
                 row=layout.row(); row.prop(lyt, "bkr_nsng2");
                 row=layout.row(); row.prop(lyt, "bkr_nsng3");
+                row=layout.row(); row.prop(lyt, "bkr_nsng4");
+
+                layout.separator();
+                row=layout.row(); row.label("Metalness settings:");
+
+                row=layout.row(); row.prop(lyt, "bkr_metbase");
+                row=layout.row(); row.prop(lyt, "bkr_mettol" );
+                row=layout.row(); row.prop(lyt, "bkr_metmask");
 
                 layout.separator();
 
-                row=layout.row(); row.prop(lyt, "bkr_size");
-                row.operator("lytbkr.bkogl", text = "BAKE", icon = "SCENE");
+                row=layout.row(); row.prop(lyt, "bkr_size"); row.prop(lyt, "bkr_res");
+
+                row=layout.row();
+                row.operator("lytbkr.bkogl", text="BAKE", icon="RENDER_STILL");
 
 
 #   ---     ---     ---     ---     ---
@@ -290,11 +544,15 @@ class LYT_renderPanel(Panel):
 def register():
     register_class(LYT_SceneSettings);
     register_class(LYT_BKOGL);
+    register_class(LYT_SVBUTT);
+    register_class(LYT_LDBUTT);
     register_class(LYT_renderPanel);
     Scene.lytools=PointerProperty(type=LYT_SceneSettings);
 
 def unregister():
     del Scene.lytools;
     unregister_class(LYT_renderPanel);
+    unregister_class(LYT_LDBUTT);
+    unregister_class(LYT_SVBUTT);
     unregister_class(LYT_BKOGL);
     unregister_class(LYT_SceneSettings);
