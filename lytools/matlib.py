@@ -16,15 +16,6 @@ from bpy.props import (
 
 );
 
-from bpy.types import (
-
-    ShaderNodeTexImage,
-    ShaderNodeTexCoord,
-    ShaderNodeGroup,
-    ShaderNodeOutput
-
-);
-
 #   ---     ---     ---     ---     ---
 
 IMTYPES={
@@ -44,13 +35,19 @@ def MATGNSIS():
     tc=nodes.new('ShaderNodeTexCoord'); tc.location=[0,0];
     tc.name=tc.label="TEXCOORD";
 
+    vm=nodes.new('ShaderNodeVectorMath'); vm.location=[250, 0];
+    vm.name=vm.label="VECMATH"; vm.operation='MULTIPLY';
+
+    ntree.links.new(tc.outputs[2], vm.inputs[0]);
+    vm.inputs[1].default_value=[1,1,1];
+
 #   ---     ---     ---     ---     ---
 
-    shd=nodes.new('ShaderNodeGroup');  shd.location=[500, 0];
+    shd=nodes.new('ShaderNodeGroup');  shd.location=[750, 0];
     shd.node_tree=bpy.data.node_groups["LyShader"];
     shd.name=shd.label="SHADER";
 
-    out=nodes.new('ShaderNodeOutput'); out.location=[750, 0];
+    out=nodes.new('ShaderNodeOutput'); out.location=[1000, 0];
     out.name=out.label="OUT";
 
 #   ---     ---     ---     ---     ---
@@ -58,10 +55,10 @@ def MATGNSIS():
     matname=lyt.mat_f1.split("\\")[-1]; y=600;
 
     for name in IMTYPES:
-        im=nodes.new('ShaderNodeTexImage'); im.location=[250, y];
+        im=nodes.new('ShaderNodeTexImage'); im.location=[500, y];
         im.name=im.label=name; y-=275;
 
-        ntree.links.new(tc.outputs[2], im.inputs[0]);
+        ntree.links.new(vm.outputs[0], im.inputs[0]);
         for i in range(len(IMTYPES[name])):
             ntree.links.new(im.outputs[i], shd.inputs[IMTYPES[name][i]]);
 
@@ -78,7 +75,7 @@ def MATGNSIS():
 
 #   ---     ---     ---     ---     ---
 
-NDCHECK=["TEXCOORD", "SHADER", "OUT"] + [key for key in IMTYPES];
+NDCHECK=["TEXCOORD", "SHADER", "OUT", "VECMATH"] + [key for key in IMTYPES];
 
 def VALIDATE(mat):
 
@@ -126,6 +123,28 @@ def UPIMPATH(self, context):
 
 #   ---     ---     ---     ---     ---
 
+def UPPROJ(self, context):
+
+    mat=context.object.active_material;
+    lyt=mat.lytools; ntree=mat.node_tree;
+
+    im=ntree.nodes["ALBEDO"];
+    tc, vm = ntree.nodes["TEXCOORD"], ntree.nodes["VECMATH"];
+
+    if lyt.mat_proj == 'FLAT' and im.projection == 'BOX':
+        ntree.links.new(tc.outputs[2], vm.inputs[0]);
+    elif lyt.mat_proj == 'BOX' and im.projection == 'FLAT':
+        ntree.links.new(tc.outputs[3], vm.inputs[0]);
+
+    for imname in IMTYPES:
+        im=ntree.nodes[imname];
+        im.projection=lyt.mat_proj;
+        im.projection_blend=lyt.mat_blend;
+
+    vm.inputs[1].default_value[0:2] = lyt.mat_scale[:];
+
+#   ---     ---     ---     ---     ---
+
 class LYT_MaterialSettings(PropertyGroup):
 
     mat_f0=EnumProperty (
@@ -145,6 +164,42 @@ class LYT_MaterialSettings(PropertyGroup):
 
         name        = "Material",
         description = "Material folder to work with"
+
+    );
+
+    mat_proj=EnumProperty (
+
+        items       = [('FLAT', 'UV',        'Use UV coordinates for texture mapping'),
+                       ('BOX',  'Generated', 'Map textures through box projection'   )],
+
+        update      = UPPROJ,
+        name        = "Mapping",
+        description = "Sets texture mapping mode"
+
+    );
+
+    mat_scale=FloatVectorProperty (
+
+        name        = "Scaling",
+        description = "Scales UV/generated texture coordinates",
+        subtype     = 'NONE',
+
+        size        = 2,
+        default     = [1.0,1.0],
+        update      = UPPROJ
+
+    );
+
+    mat_blend=FloatProperty (
+
+        name        = "Blend",
+        description = "Blurs texture at the seams",
+
+        default     = 0.05,
+        min         = 0.0,
+        max         = 1.0,
+
+        update      = UPPROJ
 
     );
 
@@ -194,6 +249,13 @@ class LYT_materialPanel(Panel):
 
             if not VALIDATE(mat):
                 row=layout.row(); row.operator("lytmat.initmat", text="INIT", icon="SMOOTH");
+
+            else:
+                row=layout.row(); row.prop(lyt, "mat_proj");
+                if lyt.mat_proj == 'BOX':
+                    row=layout.row(); row.prop(lyt, "mat_blend");
+
+                row=layout.row(); row.prop(lyt, "mat_scale");
 
 #   ---     ---     ---     ---     ---
 
