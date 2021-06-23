@@ -123,6 +123,13 @@ def UPIMPATH(self, context):
 
 #   ---     ---     ---     ---     ---
 
+def UPMAT(self, context):
+    mat=context.object.active_material;
+    lyt=mat.lytools; ntree=mat.node_tree;
+
+    nd=ntree.nodes["SHADER"];
+    nd.inputs[7].default_value=lyt.mat_fresnel;
+
 def UPPROJ(self, context):
 
     mat=context.object.active_material;
@@ -203,6 +210,19 @@ class LYT_MaterialSettings(PropertyGroup):
 
     );
 
+    mat_fresnel=FloatProperty (
+
+        name        = "Fresnel",
+        description = "Brightens material at the edges",
+
+        default     = 0.075,
+        min         = 0.0,
+        max         = 1.0,
+
+        update      = UPMAT
+
+    );
+
 #   ---     ---     ---     ---     ---
 
 class LYT_INITMAT(Operator):
@@ -251,11 +271,18 @@ class LYT_materialPanel(Panel):
                 row=layout.row(); row.operator("lytmat.initmat", text="INIT", icon="SMOOTH");
 
             else:
+
+                layout.separator();
+
                 row=layout.row(); row.prop(lyt, "mat_proj");
                 if lyt.mat_proj == 'BOX':
                     row=layout.row(); row.prop(lyt, "mat_blend");
 
                 row=layout.row(); row.prop(lyt, "mat_scale");
+
+                layout.separator();
+
+                row=layout.row(); row.prop(lyt, "mat_fresnel");
 
 #   ---     ---     ---     ---     ---
 
