@@ -51,10 +51,11 @@ def UPIMPATH(self, context):
     node=GTBKR_NODE("BAKE_FROM"); lyt=context.scene.lytools;
     node.image.filepath=lyt.bkr_f1+'albedo.png';
 
-    rtpath=node.image.filepath;
-    rtpath="_".join(rtpath.split("_")[:-1])
+    rtpath=lyt.bkr_f1[:-1];
     if os.path.exists(rtpath+".lytx"):
-        LDLYTX(rtpath, lyt);
+        LDLYTX(lyt);
+
+    bpy.ops.file.make_paths_relative();
 
 #   ---     ---     ---     ---     ---
 
@@ -64,6 +65,7 @@ def STNSNG(self, context):
         node.inputs[1+i].default_value=getattr(lyt, f"bkr_nsng{i}");
 
     node=GTBKR_NODE("ADDROUGH"); node.inputs[1].default_value=lyt.bkr_nsng4;
+    node=GTBKR_NODE("RMASK"); node.color_ramp.elements[1].position=lyt.bkr_rmask;
 
 def STBKSIZE(self, context):
     lyt=context.scene.lytools;
@@ -94,6 +96,8 @@ viewModes = [
 
     ("normal", "Normal", "Show calculated normal map"),
     ("albedo", "Albedo", "Show base color map"       ),
+    ("height", "Height", "Show height map"           ),
+    ("rmask",  "RMASK",  "Show rawmask"              ),
     ("rough",  "Rough",  "Show roughness map"        ),
     ("metal",  "Metal",  "Show metalness mask"       ),
     ("emit",   "Emit",   "Show emission mask"        )
@@ -104,6 +108,8 @@ viewModes_nd = {
 
     "normal": "NBAKE_SETTINGS",
     "albedo": "BAKE_FROM",
+    "height": "NBAKE_SETTINGS",
+    "rmask" : "RMASK",
     "rough" : "BKROUGH",
     "metal" : "METMASK",
     "emit"  : "EMITMASK"
@@ -117,11 +123,8 @@ def UPBKRVIEW(self, context):
     node=GTBKR_NODE(viewModes_nd[lyt.bkr_view]);
     out_node=GTBKR_NODE("REOUT");
 
-    links.new(node.outputs[0], out_node.inputs[0]);
-
-    #if lyt.bkr_view == "normal":
-    #    mix_node=GTBKR_NODE("OUTMIX");
-    #    links.new(node.outputs[2], mix_node.inputs[0]);
+    out_idex=2 if lyt.bkr_view=="height" else 0;
+    links.new(node.outputs[out_idex], out_node.inputs[0]);
 
 class LYT_SceneSettings(PropertyGroup):
 
@@ -153,6 +156,19 @@ class LYT_SceneSettings(PropertyGroup):
 
         name        = "Material",
         description = "Material folder to work with"
+
+    );
+
+    bkr_rmask=FloatProperty (
+
+        name        = "Rawmask tolerance",
+        description = "Adjusts grey levels of the initial rawmask",
+
+        default     = 0.338776,
+        min         = 0.000001,
+        max         = 1.0,
+
+        update      = STNSNG
 
     );
 
@@ -215,7 +231,7 @@ class LYT_SceneSettings(PropertyGroup):
 
         default     = 0.0,
         min         = -1.0,
-        max         = 1.0,
+        max         = 4.0,
 
         update      = STNSNG
 
@@ -327,6 +343,8 @@ class LYT_SceneSettings(PropertyGroup):
 
 LYT_ATTRS=([
 
+    "bkr_rmask",
+
     "bkr_nsng0",
     "bkr_nsng1",
     "bkr_nsng2",
@@ -346,8 +364,8 @@ LYT_ATTRS=([
 
 ]);
 
-def SVLYTX(rtpath, lyt):
-    d={}; rtpath=rtpath[:-1];
+def SVLYTX(lyt):
+    d={}; rtpath=lyt.bkr_f1[:-1];
     for k in LYT_ATTRS:
         if k == "bkr_metmask":
             d[k]=lyt.bkr_metmask[:];
@@ -359,8 +377,8 @@ def SVLYTX(rtpath, lyt):
     path=rtpath+".lytx"; d=(str(d)).replace(" ", "");
     with open(path, "w+") as file: file.write(d);
 
-def LDLYTX(rtpath, lyt):
-    s=""; path=rtpath+".lytx";
+def LDLYTX(lyt):
+    s=""; path=lyt.bkr_f1[:-1]+".lytx";
     with open(path, "r") as file:
         s=file.read();
 
@@ -384,14 +402,8 @@ class LYT_SVBUTT(Operator):
 
     def execute(self, context):
 
-        lyt=context.scene.lytools;
-
-        node=GTBKR_NODE("BAKE_FROM");
-        rtpath=node.image.filepath;
-        rtpath="_".join(rtpath.split("_")[:-1])+"_"
-
-        SVLYTX(rtpath, lyt);
-        self.report({'INFO'}, f"Material settings saved to <{rtpath[:-1]+'.lytx'}>");
+        lyt=context.scene.lytools; SVLYTX(lyt);
+        self.report({'INFO'}, f"Material settings saved to <{lyt.bkr_f1[:-1]+'.lytx'}>");
 
         return {'FINISHED'};
 
@@ -404,18 +416,13 @@ class LYT_LDBUTT(Operator):
 
     def execute(self, context):
 
-        lyt=context.scene.lytools;
+        lyt=context.scene.lytools; path=lyt.bkr_f1[:-1]+".lytx";
 
-        node=GTBKR_NODE("BAKE_FROM");
-        rtpath=node.image.filepath;
-        rtpath="_".join(rtpath.split("_")[:-1]);
-
-        if os.path.exists(rtpath+".lytx"):
-            LDLYTX(rtpath, lyt);
-            self.report({'INFO'}, f"Loaded <{rtpath+'.lytx'}>");
+        if os.path.exists(path):
+            LDLYTX(lyt); self.report({'INFO'}, f"Loaded <{path}>");
 
         else:
-            self.report({'WARNING'}, f"File <{rtpath+'.lytx'}> not found!");
+            self.report({'WARNING'}, f"File <{path}> not found!");
 
         return {'FINISHED'};
 
@@ -445,11 +452,9 @@ class LYT_BKOGL(Operator):
         mix_node=GTBKR_NODE("OUTMIX");
         links.new(node.outputs[2], mix_node.inputs[0]);
 
-        node=GTBKR_NODE("BAKE_FROM");
-        rtpath=node.image.filepath;
-        rtpath="_".join(rtpath.split("_")[:-1])+"_"
+        node=GTBKR_NODE("BAKE_FROM"); rtpath=lyt.bkr_f1;
 
-        SVLYTX(rtpath, lyt);
+        SVLYTX(lyt);
         usystem.use_mipmaps=1;
 
         context.scene.camera=context.scene.objects["CANVAS_CAM"];
@@ -576,6 +581,8 @@ class LYT_renderPanel(Panel):
 
         row.prop_enum(lyt, "bkr_view", "normal");
         row.prop_enum(lyt, "bkr_view", "albedo");
+        row.prop_enum(lyt, "bkr_view", "height");
+        row.prop_enum(lyt, "bkr_view", "rmask" );
         row.prop_enum(lyt, "bkr_view", "rough" );
         row.prop_enum(lyt, "bkr_view", "metal" );
         row.prop_enum(lyt, "bkr_view", "emit"  );
@@ -596,6 +603,10 @@ class LYT_renderPanel(Panel):
                 layout.separator();
 
                 row=layout.row(); row.label("Normal/Rough settings:");
+
+                row=layout.row(); row.prop(lyt, "bkr_rmask");
+
+                layout.separator();
 
                 row=layout.row(); row.prop(lyt, "bkr_nsng0");
                 row=layout.row(); row.prop(lyt, "bkr_nsng1");

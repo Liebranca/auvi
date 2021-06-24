@@ -121,6 +121,8 @@ def UPIMPATH(self, context):
         node=mat.node_tree.nodes[imname];
         node.image.filepath=lyt.mat_f1+imname.lower()+'.png';
 
+    bpy.ops.file.make_paths_relative();
+
 #   ---     ---     ---     ---     ---
 
 def UPMAT(self, context):

@@ -19,67 +19,37 @@ from bpy.props import (
 
 #   ---     ---     ---     ---     ---
 
-MATNAMES=["", "", "", ""];
+MATNAMES=[];
 
 MATIDS=([
 
     (0,0,0),
     (0,0,1),
     (0,1,0),
-    (1,0,0),
-
-    (1,1,1)
+    (1,0,0)
 
 ]);
-
-def MKMATID(mat, color):
-    mat.use_nodes=1;
-    ntree=mat.node_tree; nodes=ntree.nodes; nodes.clear();
-
-    diff=nodes.new('ShaderNodeEmission');
-    diff.inputs[0].default_value[0:3]=color[:];
-
-    out=nodes.new('ShaderNodeOutputMaterial');
-    ntree.links.new(diff.outputs[0], out.inputs[0]);
-
-    im=nodes.new('ShaderNodeTexImage');
-    im.image=bpy.data.images["BAKETO_MATID"];
-
-    nodes.active=im;
-
-def GTMATID(idex):
-
-    if idex>=4: idex=4;
-
-    name=f"MATID{idex}";
-    if name not in bpy.data.materials:
-        mat=bpy.data.materials.new(name=name);
-        MKMATID(mat, MATIDS[idex]);
-
-    else:
-        mat=bpy.data.materials[name];
-
-    return mat;
 
 #   ---     ---     ---     ---     ---
 
 def BKMATIDS(me):
 
-    global MATNAMES; MATNAMES=["" for _ in range(4)];
+    global MATNAMES; MATNAMES=["" for _ in range(16)];
 
     rend=bpy.context.scene.render;
-
-    old_usta=rend.bake.use_selected_to_active;
     rend.bake.cage_extrusion=10;
 
-    old_en=rend.engine;
-    old_bk=bpy.context.scene.cycles.bake_type;
+#   ---     ---     ---     ---     ---
+# assign solid colors to material slots
 
-    old_mats=[]; i=0;
+    i=0; h=1;
     for mat in me.materials:
-        MATNAMES[i]=mat.name;
-        cmat=GTMATID(i); old_mats.append(mat);
-        me.materials[i]=cmat; i+=1;
+        j=i+(4*(h-1)); MATNAMES[j]=mat.name;
+        i=0 if i==3 else i+1;
+        if not i: h+=1;
+
+#   ---     ---     ---     ---     ---
+# clone original and do castling
 
     rend.bake.use_selected_to_active=1;
     rend.engine='CYCLES';
@@ -90,47 +60,104 @@ def BKMATIDS(me):
     cl.data=cl.data.copy(); ob.name, cl.name = cl.name, ob.name;
     ob.data, cl.data = cl.data, ob.data;
 
-    for _ in range(len(cl.data.materials)-1):
-        ob.active_material_index=0;
+    ob.active_material_index=len(ob.data.materials)-1;
+    for _ in range(len(cl.data.materials)-h):
+        i=ob.active_material_index;
         bpy.ops.object.material_slot_remove();
+        ob.active_material_index-=1;
 
     rend.bake.use_pass_direct=0;
     rend.bake.use_pass_indirect=0;
     rend.bake.use_pass_color=1;
 
-    bpy.ops.object.bake(type='EMIT');
+    for vc in ob.data.vertex_colors:
+        ob.data.vertex_colors.remove(vc);
 
-    ob.data.materials[0]=bpy.data.materials["MATID_BAKE"];
-    rend.engine='BLENDER_RENDER'; rend.use_bake_selected_to_active=0;
-    old_ibk=rend.bake_type; rend.bake_type='FULL';
+    for vckey in ["Col", "Mix"]:
+        ob.data.vertex_colors.new(name=vckey);
 
-    cl.select=0; ob.select=1; bpy.context.scene.objects.active=ob;
+#   ---     ---     ---     ---     ---
+# paste submat ids into 'COL' slot
 
-    for d in ob.data.uv_textures[0].data:
-        d.image=bpy.data.images['BAKETO_MATID'];
+    id_loops=[[], [], [], []];
+    for poly in cl.data.polygons:
+        i=poly.material_index;
+        while i>3: i-=4;
 
-    bpy.ops.object.bake_image();
+        id_loops[i].extend([
 
-    rend.bake_type=old_ibk; rend.engine='CYCLES';
-    cmat=bpy.data.materials["COLORMASKING"].copy();
+            loop for loop in poly.loop_indices
+            if loop not in id_loops[i]
 
-    cmat.name=(ob.name)+'_COLORMASK';
-    ob.data.materials[0]=cmat;
+            ]);
 
-    nodes=cmat.node_tree.nodes;
+    ob.data.vertex_colors.active_index=0;
+    vc=ob.data.vertex_colors["Col"]; i=0;
 
-    rend.use_bake_to_vertex_color=1; rend.bake.use_selected_to_active=old_usta;
-    rend.engine=old_en; bpy.context.scene.cycles.bake_type=old_bk;
-
-    i=0;
-    for mat in me.materials:
-
-        omat=old_mats[i]; me.materials[i]=omat;
-        nodes[f"IM{i}"].image=omat.node_tree.nodes["ALBEDO"].image;
+    for matid in id_loops:
+        for loop_index in matid:
+            vc.data[loop_index].color[:3]=MATIDS[i];
 
         i+=1;
 
-    GTMIXMAT(None, bpy.context);
+#   ---     ---     ---     ---     ---
+# paste mixmat color ids into 'MIX' slot
+
+    ob.active_material_index=0; id_loops=[[], [], [], []];
+    for poly in ob.data.polygons:
+        id_loops[poly.material_index].extend([
+
+            loop for loop in poly.loop_indices
+            if loop not in id_loops[poly.material_index]
+
+            ]);
+
+    ob.data.vertex_colors.active_index=1;
+    vc=ob.data.vertex_colors["Mix"]; i=0;
+
+    for matid in id_loops:
+        for loop_index in matid:
+            vc.data[loop_index].color[:3]=MATIDS[i];
+
+        i+=1;
+
+#   ---     ---     ---     ---     ---
+# assign textures
+
+    tot=len(ob.data.materials);
+    for x in range(h):
+        cmat=bpy.data.materials["COLORMASKING"].copy();
+
+        cmat.name=(ob.name)+'_COLORMASK'; i=0; j=0;
+        ob.data.materials[x]=cmat; nodes=cmat.node_tree.nodes;
+
+        for mat in me.materials:
+            omat=me.materials[j];
+            nodes[f"IM{i}"].image=omat.node_tree.nodes["ALBEDO"].image;
+
+            i=0 if i==3 else i+1; j+=1;
+
+    for i in range(len(ob.data.materials)-1, -1, -1):
+        ob.lyt_mix_idex=i;
+
+#   ---     ---     ---     ---     ---
+
+def BKMIX():
+
+    mat=bpy.context.object.active_material;
+    ntree=mat.node_tree;
+
+    aout, cout = ntree.nodes["OUTALPHA"], ntree.nodes["OUTCOLOR"];
+    nmix, cmix = ntree.nodes["MIXNORMAL"], ntree.nodes["MIXCOLOR"];
+    omix, nbaketo = ntree.nodes["MIXORM"], ntree.nodes["NBAKETO"];
+    fmix, amix = ntree.nodes["FRESNELMIX"], ntree.nodes["MIXALPHA"];
+    aobaketo, ncombined = ntree.nodes["AOBAKE"], ntree.nodes["NCOMB"];
+    afac, result = ntree.nodes["FACALPHA"], ntree.nodes["RESULT"];
+
+#   ---     ---     ---     ---     ---
+# bake albedo...
+
+    
 
 #   ---     ---     ---     ---     ---
 
@@ -164,6 +191,23 @@ def UPPROJ(self, context):
     else:
         ramp.color_ramp.elements[0].position=1-lyt.tol;
 
+def UPMIXPAR(self, context):
+    if self.lyt_mix_idex > len(self.data.materials)-1:
+        self.lyt_mix_idex = len(self.data.materials)-1;
+        return;
+
+    mat=self.active_material; ntree=mat.node_tree;
+    out, act=ntree.nodes["MATOUT"], ntree.nodes["INACTIVE"];
+    ntree.links.new(act.outputs[0], out.inputs[0]);
+
+    self.active_material_index=self.lyt_mix_idex;
+
+    mat=self.active_material; ntree=mat.node_tree;
+    out, act=ntree.nodes["MATOUT"], ntree.nodes["ACTIVE"];
+    ntree.links.new(act.outputs[0], out.inputs[0]);
+
+    GTMIXMAT(self, context);
+
 #   ---     ---     ---     ---     ---
 
 def GTMIXMAT(self, context):
@@ -171,7 +215,7 @@ def GTMIXMAT(self, context):
     mat=context.object.active_material;
     lyt=mat.lytools; idex=lyt.cur; ntree=mat.node_tree;
 
-    lyt.upchk=1; lyt.name=MATNAMES[idex];
+    lyt.upchk=1; lyt.name=MATNAMES[idex+(4*context.object.active_material_index)];
 
     ramp=ntree.nodes[f"RAMP{idex}"];
     mapping=ntree.nodes[f"MAP{idex}"];
@@ -311,10 +355,10 @@ class LYT_BKMATID(Operator):
 
     def execute(self, context):
 
-        if len(context.object.data.materials) > 4:
+        if len(context.object.data.materials) > 16:
             self.report(
                 {'WARNING'},
-                f"Object {context.object.name} has more than 4 materials; op aborted"
+                f"Object {context.object.name} has more than 16 materials; op aborted"
             );
 
         else:
@@ -343,9 +387,14 @@ class LYT_mixingPanel(Panel):
         layout=self.layout; row=layout.row();
         row.operator("lytbkr.bkmatid", text="BAKE MATERIAL IDS", icon="COLOR");
 
-        if "_COLORMASK" in context.object.data.materials[0].name:
+        
+        if "_COLORMASK" in context.object.active_material.name:
 
             mat=context.object.active_material; lyt=mat.lytools;
+            layout.separator();
+
+            row=layout.row(); row.prop(context.object, "lyt_mix_idex");
+
             layout.separator();
 
             for prop in ["cur", "proj", "blend", "tol", "scale", "loc", "rot"]:
@@ -368,8 +417,20 @@ def register():
     register_class(LYT_mixingPanel);
     register_class(LYT_BKMATID);
     Material.lytools=PointerProperty(type=LYT_MixMatSettings);
+    Object.lyt_mix_idex=IntProperty(
+
+        name        = "Mix",
+        description = "Current sub-material container",
+        update      = UPMIXPAR,
+
+        default     = 0,
+        min         = 0,
+        max         = 3
+
+    );
 
 def unregister():
+    del Object.lyt_mix_idex;
     del Material.lytools;
     unregister_class(LYT_BKMATID);
     unregister_class(LYT_mixingPanel);

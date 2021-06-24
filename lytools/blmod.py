@@ -1,12 +1,15 @@
-from bpy.types import Scene;
-import importlib;
+import bpy, os, importlib;
+
+def RELPATH(to):
+    path=bpy.context.blend_data.filepath;
+    return os.path.relpath(to, path);
 
 def lytdummy():
     pass;
 
 def reg(n):
 
-    if not hasattr(Scene, "lymport"):
+    if not hasattr(bpy.types.Scene, "lymport"):
         from .importer import register as reg_lymport;
         reg_lymport();
 
