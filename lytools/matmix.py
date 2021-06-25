@@ -3,6 +3,8 @@ import bpy, os;
 from bpy.types import Panel, Operator, PropertyGroup, Object, Material, Scene;
 from bpy.utils import register_class, unregister_class;
 
+from .blmod    import SHUT_OPS;
+
 #   ---     ---     ---     ---     ---
 
 from bpy.props import (
@@ -19,8 +21,6 @@ from bpy.props import (
 
 #   ---     ---     ---     ---     ---
 
-MATNAMES=[];
-
 MATIDS=([
 
     (0,0,0),
@@ -34,18 +34,15 @@ MATIDS=([
 
 def BKMATIDS(me):
 
-    global MATNAMES; MATNAMES=["" for _ in range(16)];
-
     rend=bpy.context.scene.render;
     rend.bake.cage_extrusion=10;
 
 #   ---     ---     ---     ---     ---
-# assign solid colors to material slots
+# do some math
 
     i=0; h=1;
     for mat in me.materials:
-        j=i+(4*(h-1)); MATNAMES[j]=mat.name;
-        i=0 if i==3 else i+1;
+        j=i+(4*(h-1)); i=0 if i==3 else i+1;
         if not i: h+=1;
 
 #   ---     ---     ---     ---     ---
@@ -128,7 +125,7 @@ def BKMATIDS(me):
     for x in range(h):
         cmat=bpy.data.materials["COLORMASKING"].copy();
 
-        cmat.name=(ob.name)+'_COLORMASK'; i=0; j=0;
+        cmat.name=(ob.name)+f'_COLORMASK{x}'; i=0; j=0;
         ob.data.materials[x]=cmat; nodes=cmat.node_tree.nodes;
 
         for mat in me.materials:
@@ -138,26 +135,170 @@ def BKMATIDS(me):
             i=0 if i==3 else i+1; j+=1;
 
     for i in range(len(ob.data.materials)-1, -1, -1):
-        ob.lyt_mix_idex=i;
+        ob.lytools.mix_idex=i;
 
 #   ---     ---     ---     ---     ---
 
-def BKMIX():
+def STALPHA(col, alpha):
+    c_pixels=list(col.pixels); a_pixels=list(alpha.pixels);
+    for j in range(0, len(c_pixels), 4): c_pixels[j+3]*=a_pixels[j];
+    col.pixels[:]=c_pixels; col.update();
 
-    mat=bpy.context.object.active_material;
-    ntree=mat.node_tree;
+def BKMIXMAT():
 
-    aout, cout = ntree.nodes["OUTALPHA"], ntree.nodes["OUTCOLOR"];
-    nmix, cmix = ntree.nodes["MIXNORMAL"], ntree.nodes["MIXCOLOR"];
-    omix, nbaketo = ntree.nodes["MIXORM"], ntree.nodes["NBAKETO"];
-    fmix, amix = ntree.nodes["FRESNELMIX"], ntree.nodes["MIXALPHA"];
-    aobaketo, ncombined = ntree.nodes["AOBAKE"], ntree.nodes["NCOMB"];
-    afac, result = ntree.nodes["FACALPHA"], ntree.nodes["RESULT"];
+    rend=bpy.context.scene.render;
+    ob=bpy.context.object;
 
 #   ---     ---     ---     ---     ---
-# bake albedo...
+# set up
 
-    
+    rend.image_settings.file_format='PNG';
+    rend.image_settings.color_mode='RGBA';
+
+    folder=f"{ob.lytools.f0}\\textures\\{ob.name}"
+    if not os.path.exists(folder): os.makedirs(folder);
+
+    rtpath=f"{folder}\\{ob.name}_";
+
+    rend.bake.use_selected_to_active=0;
+    rend.engine='CYCLES';
+
+    rend.bake.use_pass_direct=0;
+    rend.bake.use_pass_indirect=0;
+    rend.bake.use_pass_color=1;
+
+#   ---     ---     ---     ---     ---
+# loop thru mixes
+
+    for i in range(len(ob.data.materials)):
+
+        print(f"Baking mix {i}: ", end='', flush=1);
+        ob.lytools.mix_idex=i;
+
+        mat=ob.active_material; ntree=mat.node_tree;
+
+        cout = ntree.nodes["OUTCOLOR"];
+
+        nmix, cmix = ntree.nodes["MIXNORMAL"], ntree.nodes["MIXCOLOR"];
+        omix, nbaketo = ntree.nodes["MIXORM"], ntree.nodes["NBAKE"];
+        fmix, amix = ntree.nodes["FRESNELMIX"], ntree.nodes["MIXALPHA"];
+        aobaketo, ncombined = ntree.nodes["AOBAKE"], ntree.nodes["NCOMB"];
+        result, resalpha = ntree.nodes["RESULT"], ntree.nodes["RESALPHA"];
+
+        ntree.nodes.active=result;
+        result.image.generated_width=ob.lytools.res;
+        result.image.generated_height=ob.lytools.res;
+        resalpha.image.generated_width=ob.lytools.res;
+        resalpha.image.generated_height=ob.lytools.res;
+
+#   ---     ---     ---     ---     ---
+# bake albedo
+
+        print("albedo, ", end='', flush=1); impath=rtpath+f"albedo{i}.png";
+
+        SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+        result.image.save_render(impath);
+
+        ntree.nodes.active=resalpha;
+        ntree.links.new(amix.outputs[0], cout.inputs[0]);
+        SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+        result.image.source='FILE'; result.image.filepath=impath;
+        STALPHA(result.image, resalpha.image); result.image.save_render(impath);
+
+        result.image.source='GENERATED';
+
+        ntree.nodes.active=result;
+        ntree.links.new(cmix.outputs[0], cout.inputs[0]);
+
+#   ---     ---     ---     ---     ---
+# set orm+e and bake
+
+        print("ORM+E, ", end='', flush=1); impath=rtpath+f"orm{i}.png";
+
+        for h in range(4):
+
+            node=ntree.nodes[f"IM{h}"];
+            if node.image.name != "DUMMY":
+                base=node.image.name.split("_")[0];
+                node.image=bpy.data.images[base+"_orm"];
+
+        SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+        result.image.save_render(impath);
+
+        ntree.nodes.active=resalpha;
+        ntree.links.new(amix.outputs[0], cout.inputs[0]);
+        SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+        result.image.source='FILE'; result.image.filepath=impath;
+        STALPHA(result.image, resalpha.image); result.image.save_render(impath);
+
+        result.image.source='GENERATED';
+
+        ntree.nodes.active=result;
+        ntree.links.new(cmix.outputs[0], cout.inputs[0]);
+
+#   ---     ---     ---     ---     ---
+# set normal and bake
+
+        print("normals, ", end='', flush=1); impath=rtpath+f"normal{i}.png";
+
+        for h in range(4):
+
+            node=ntree.nodes[f"IM{h}"];
+            if node.image.name != "DUMMY":
+                base=node.image.name.split("_")[0];
+                node.image=bpy.data.images[base+"_normal"];
+
+        SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+        result.image.save_render(impath);
+
+        ntree.nodes.active=resalpha;
+        ntree.links.new(amix.outputs[0], cout.inputs[0]);
+        SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+        result.image.source='FILE'; result.image.filepath=impath;
+        STALPHA(result.image, resalpha.image); result.image.save_render(impath);
+
+        result.image.source='GENERATED';
+
+        ntree.nodes.active=result;
+        ntree.links.new(cmix.outputs[0], cout.inputs[0]);
+
+#   ---     ---     ---     ---     ---
+# set fresnel out and bake
+
+        print("fresnel... ");
+
+        for h in range(4):
+
+            node=ntree.nodes[f"IM{h}"];
+            if node.image.name != "DUMMY":
+                base=node.image.name.split("_")[0];
+                basemat=bpy.data.materials[base];
+                v=basemat.node_tree.nodes["SHADER"].inputs[7].default_value;
+                fmix.inputs[4+h].default_value=v;
+
+        ntree.links.new(fmix.outputs[0], ntree.nodes["MATOUT"].inputs[0]);
+
+        SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+        result.image.save_render(rtpath+f"fresnel{i}.png");
+        ntree.links.new(cmix.outputs[0], cout.inputs[0]);
+
+#   ---     ---     ---     ---     ---
+# walkback changes
+
+        for h in range(4):
+
+            node=ntree.nodes[f"IM{h}"];
+            if node.image.name != "DUMMY":
+                base=node.image.name.split("_")[0];
+                node.image=bpy.data.images[base+"_albedo"];
+                node.image.reload();
+
+        ntree.links.new(ntree.nodes["OUTCOLOR"].outputs[0], ntree.nodes["MATOUT"].inputs[0]);
+
+    ob.lytools.mix_idex=0;
 
 #   ---     ---     ---     ---     ---
 
@@ -192,30 +333,39 @@ def UPPROJ(self, context):
         ramp.color_ramp.elements[0].position=1-lyt.tol;
 
 def UPMIXPAR(self, context):
-    if self.lyt_mix_idex > len(self.data.materials)-1:
-        self.lyt_mix_idex = len(self.data.materials)-1;
+
+    ob=context.object;
+
+    if self.mix_idex > len(ob.data.materials)-1:
+        self.mix_idex = len(ob.data.materials)-1;
         return;
 
-    mat=self.active_material; ntree=mat.node_tree;
+    mat=ob.active_material; ntree=mat.node_tree;
     out, act=ntree.nodes["MATOUT"], ntree.nodes["INACTIVE"];
     ntree.links.new(act.outputs[0], out.inputs[0]);
 
-    self.active_material_index=self.lyt_mix_idex;
+    ob.active_material_index=self.mix_idex;
 
-    mat=self.active_material; ntree=mat.node_tree;
-    out, act=ntree.nodes["MATOUT"], ntree.nodes["ACTIVE"];
+    mat=ob.active_material; ntree=mat.node_tree;
+    out, act=ntree.nodes["MATOUT"], ntree.nodes["OUTCOLOR"];
     ntree.links.new(act.outputs[0], out.inputs[0]);
 
-    GTMIXMAT(self, context);
+    GTMIXMAT(None, context);
 
 #   ---     ---     ---     ---     ---
+
+DROOT="\\".join(__file__.split("\\")[:-2])+'\\data';
+
+def GTF0(self, context):
+    w=list(os.walk(DROOT));
+    return [tuple([w[0][0]+'\\'+s, s.capitalize(), '']) for s in w[0][1]];
 
 def GTMIXMAT(self, context):
 
     mat=context.object.active_material;
     lyt=mat.lytools; idex=lyt.cur; ntree=mat.node_tree;
 
-    lyt.upchk=1; lyt.name=MATNAMES[idex+(4*context.object.active_material_index)];
+    lyt.upchk=1; lyt.name=ntree.nodes[f"IM{idex}"].image.name.split("_")[0];
 
     ramp=ntree.nodes[f"RAMP{idex}"];
     mapping=ntree.nodes[f"MAP{idex}"];
@@ -342,6 +492,46 @@ class LYT_MixMatSettings(PropertyGroup):
 
     );
 
+class LYT_MixObjSettings(PropertyGroup):
+
+    mix_idex=IntProperty(
+
+        name        = "Mix",
+        description = "Current sub-material container",
+        update      = UPMIXPAR,
+
+        default     = 0,
+        min         = 0,
+        max         = 3
+
+    );
+
+    mix_name=StringProperty(
+
+        name        = "Parent name",
+        description = "Name of object the mix is derived from",
+
+    );
+
+    f0=EnumProperty(
+
+        items       = GTF0,
+        name        = "Cathegory",
+        description = "Parent folder to save baked textures to"
+
+    );
+
+    res=IntProperty(
+
+        name        = "Size",
+        description = "Output resolution for resulting bake",
+
+        default     = 256,
+        min         = 2,
+        max         = 8192
+
+    );
+
 #   ---     ---     ---     ---     ---
 
 class LYT_BKMATID(Operator):
@@ -366,6 +556,18 @@ class LYT_BKMATID(Operator):
 
         return {'FINISHED'};
 
+class LYT_BKMIX(Operator):
+
+    bl_idname      = "lytbkr.bkmix";
+    bl_label       = "Bakes images from sub-materials";
+
+    bl_description = "Bakes textures from mix into a composite";
+
+#   ---     ---     ---     ---     ---
+
+    def execute(self, context):
+        BKMIXMAT(); return {'FINISHED'};
+
 #   ---     ---     ---     ---     ---
 
 class LYT_mixingPanel(Panel):
@@ -387,13 +589,13 @@ class LYT_mixingPanel(Panel):
         layout=self.layout; row=layout.row();
         row.operator("lytbkr.bkmatid", text="BAKE MATERIAL IDS", icon="COLOR");
 
-        
         if "_COLORMASK" in context.object.active_material.name:
 
             mat=context.object.active_material; lyt=mat.lytools;
             layout.separator();
 
-            row=layout.row(); row.prop(context.object, "lyt_mix_idex");
+            row=layout.row(); row.prop(context.object.lytools, "f0");
+            row=layout.row(); row.prop(context.object.lytools, "mix_idex");
 
             layout.separator();
 
@@ -403,37 +605,36 @@ class LYT_mixingPanel(Panel):
 
                 row=layout.row();
                 if prop=="cur":
-                    row.label("Current: "); row.prop(lyt, prop, text=lyt.name);
+                    name=lyt.name if lyt.name else "EMPTY";
+                    row.label("Current: "); row.prop(lyt, prop, text=name);
                 else:
                     row.prop(lyt, prop);
 
                 if prop in ["tol", "cur"]:
                     layout.separator();
 
+            layout.separator();
+            row=layout.row(); row.prop(context.object.lytools, "res");
+            row.operator("lytbkr.bkmix", text="BAKE MIX", icon="RENDER_STILL");
+
 #   ---     ---     ---     ---     ---
 
 def register():
+    register_class(LYT_MixObjSettings);
     register_class(LYT_MixMatSettings);
     register_class(LYT_mixingPanel);
     register_class(LYT_BKMATID);
+    register_class(LYT_BKMIX);
+    Object.lytools=PointerProperty(type=LYT_MixObjSettings);
     Material.lytools=PointerProperty(type=LYT_MixMatSettings);
-    Object.lyt_mix_idex=IntProperty(
-
-        name        = "Mix",
-        description = "Current sub-material container",
-        update      = UPMIXPAR,
-
-        default     = 0,
-        min         = 0,
-        max         = 3
-
-    );
 
 def unregister():
-    del Object.lyt_mix_idex;
+    del Object.lytools;
     del Material.lytools;
+    unregister_class(LYT_BKMIX);
     unregister_class(LYT_BKMATID);
     unregister_class(LYT_mixingPanel);
     unregister_class(LYT_MixMatSettings);
+    unregister_class(LYT_MixObjSettings);
 
 #   ---     ---     ---     ---     ---
