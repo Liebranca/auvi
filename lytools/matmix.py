@@ -1,4 +1,4 @@
-import bpy, os; import numpy as np;
+import bpy, bmesh, os; import numpy as np;
 
 from bpy.types import Panel, Operator, PropertyGroup, Object, Material, Scene;
 from bpy.utils import register_class, unregister_class;
@@ -299,10 +299,6 @@ def BKMIXMAT():
     ob.name, cl.name = cl.name, ob.name;
     ob.data, cl.data = cl.data, ob.data;
 
-    for key, _key in zip(ob.lytools.__dict__.keys(), cl.lytools.__dict__.keys()):
-        setattr(cl.lytools, key, cl.lytools[key]);
-        setattr(ob.lytools, _key, ob.lytools[_key]);
-
     ob.name=f"{cl.lytools.par.name}_UNI"; ob.data.name=ob.name;
 
     for _ in range(len(cl.data.materials)-1):
@@ -310,7 +306,7 @@ def BKMIXMAT():
         bpy.ops.object.material_slot_remove();
 
     cmat=bpy.data.materials["COLORMASKING"].copy();
-    cmat.name=f"{ob.lytools.par.name}_KOLORMASK_UNIFY";
+    cmat.name=f"{ob.lytools.par.name}_KOLORMASK";
     ob.data.materials[0]=cmat; nodes=cmat.node_tree.nodes;
 
     nodes["Attribute"].attribute_name="Mix";
@@ -326,6 +322,287 @@ def BKMIXMAT():
     cl.select=0;
 
 #   ---     ---     ---     ---     ---
+
+def BKPAR():
+
+    ob=bpy.context.object; par=ob.lytools.hp; self_baked=ob==par;
+    auto_smooth=ob.data.use_auto_smooth; mod_shrend=[];
+
+    for obj in bpy.context.selected_objects:
+        obj.select=0;
+
+    ob.select=1; par.select=1;
+    bpy.context.scene.objects.active=ob;
+
+    if self_baked:
+
+        par=bpy.context.scene.objects.link(ob.copy()).object;
+        par.data=par.data.copy();
+
+        if auto_smooth:
+            ob.data.use_auto_smooth=0;
+
+        for mod in ob.modifiers:
+            mod_shrend.append(mod.show_render); mod.show_render=0;
+
+        bm=bmesh.new();
+        bm.from_object(ob, bpy.context.scene, face_normals=True);
+        bm.to_mesh(par.data);
+        bm.free();
+
+    folder=f"{ob.lytools.f0}\\textures\\{ob.name}"
+    if not os.path.exists(folder): os.makedirs(folder);
+
+    rtpath=f"{folder}\\{ob.name}_";
+
+#   ---     ---     ---     ---     ---
+# setup
+
+    res=ob.lytools.res;
+
+    rend=bpy.context.scene.render;
+    old_e=rend.engine; rend.engine='BLENDER_RENDER';
+
+    rend.bake.margin=int(res/32);
+
+    imname=ob.name+"_hpnormal";
+    if imname not in bpy.data.images:
+        bpy.data.images.new(imname, height=2, width=2);
+
+    baketo=bpy.data.images[imname];
+    baketo.generated_width=res*ob.lytools.res_aa;
+    baketo.generated_height=res*ob.lytools.res_aa;
+
+#   ---     ---     ---     ---     ---
+# set image and bake normal
+
+    uv_area=bpy.data.screens["UV Editing"].areas[1];
+    uv_area.spaces.active.image=baketo;
+
+    for uvface in ob.data.uv_textures.active.data:
+        uvface.image=baketo;
+
+    rend.use_bake_to_vertex_color=0;
+    rend.use_bake_selected_to_active=1;
+    rend.bake_distance=1.0; rend.bake_bias=0.1;
+
+    rend.bake_type='NORMALS'; rend.bake_normal_space='TANGENT';
+
+    SHUT_OPS(bpy.ops.object.bake_image);
+    baketo.scale(res, res); baketo.save_render(rtpath+"hpnormal.png");
+
+#   ---     ---     ---     ---     ---
+# swap out and bake AO
+
+    imname=ob.name+"_hpao";
+    if imname not in bpy.data.images:
+        bpy.data.images.new(imname, height=2, width=2);
+
+    baketo=bpy.data.images[imname];
+    baketo.generated_width=res*ob.lytools.res_aa;
+    baketo.generated_height=res*ob.lytools.res_aa;
+
+    rend.bake_type='AO';
+    rend.use_bake_normalize=1; rend.bake_bias=2.0;
+
+    uv_area.spaces.active.image=baketo;
+
+    for uvface in ob.data.uv_textures.active.data:
+        uvface.image=baketo;
+
+    SHUT_OPS(bpy.ops.object.bake_image);
+    baketo.scale(res, res); baketo.save_render(rtpath+"hpao.png");
+
+#   ---     ---     ---     ---     ---
+# walkback changes
+
+    rend.use_bake_selected_to_active=1;
+    rend.engine=old_e; par.select=0;
+
+    if self_baked:
+        bpy.data.meshes.remove(par.data);
+        ob.data.use_auto_smooth=auto_smooth;
+
+        i=0;
+        for mod in ob.modifiers:
+            mod.show_render=mod_shrend[i];
+
+def BKUNI():
+
+    rend=bpy.context.scene.render;
+    ob=bpy.context.object; par=ob.lytools.par;
+
+#   ---     ---     ---     ---     ---
+# set up
+
+    rend.image_settings.file_format='PNG';
+    rend.image_settings.color_mode='RGBA';
+
+    folder=f"{par.lytools.f0}\\textures\\{par.name}"
+    if not os.path.exists(folder): os.makedirs(folder);
+
+    rtpath=f"{folder}\\{par.name}_";
+
+    rend.bake.use_selected_to_active=0;
+    rend.engine='CYCLES';
+
+    rend.bake.margin=int(par.lytools.res/32);
+
+#   ---     ---     ---     ---     ---
+# get nodes
+
+    print(f"Baking unified mix: ", end='', flush=1);
+
+    mat=ob.data.materials[0]; ntree=mat.node_tree;
+    cbake=ntree.nodes["CBAKE0"]; ntree.nodes.active=cbake;
+    abake=ntree.nodes["ABAKE0"];
+
+    cbake.image.generated_width=ob.lytools.res;
+    cbake.image.generated_height=ob.lytools.res;
+    abake.image.generated_width=ob.lytools.res;
+    abake.image.generated_height=ob.lytools.res;
+
+    mout=ntree.nodes["MATOUT"];
+    cout=ntree.nodes["OUTCOLOR"];
+    ntree.links.new(cout.outputs[0], mout.inputs[0]);
+
+    cmix=ntree.nodes["MIXCOLOR"];
+    amix=ntree.nodes["MIXALPHA"];
+    nmix=ntree.nodes["MIXNORMAL"];
+    omix=ntree.nodes["MIXORM"];
+
+#   ---     ---     ---     ---     ---
+# bake first three maps
+
+    for key in ["albedo", "orm", "normal"]:
+
+        print(f"{key}, ", end='', flush=1);
+
+        for h in range(4):
+            node=ntree.nodes[f"IM{h}"];
+            if node.image.name != "DUMMY":
+                base=par.name; imname=f"{base}_{key}{h}";
+                if imname not in bpy.data.images:
+                    bpy.data.images.new(imname, height=2, width=2);
+
+                node.image=bpy.data.images[imname];
+
+                node.image.source='FILE';
+                node.image.filepath=rtpath+f"{key}{h}.png"
+
+        if key=="normal":
+            hpbk_path=rtpath+"hpnormal.png";
+            if os.path.exists(hpbk_path):
+
+                base=par.name; imname=f"{base}_hpnormal";
+                if imname not in bpy.data.images:
+                    im=bpy.data.images.new(imname, height=2, width=2);
+
+                node=ntree.nodes["NBAKE"];
+                node.image=bpy.data.images[imname];
+
+                node.image.source='FILE';
+                node.image.filepath=hpbk_path;
+
+                ntree.links.new(nmix.outputs[0], cout.inputs[0]);
+
+        elif key=="orm":
+            hpbk_path=rtpath+"hpao.png";
+            if os.path.exists(hpbk_path):
+
+                base=par.name; imname=f"{base}_hpao";
+                if imname not in bpy.data.images:
+                    im=bpy.data.images.new(imname, height=2, width=2);
+
+                node=ntree.nodes["AOBAKE"];
+                node.image=bpy.data.images[imname];
+
+                node.image.source='FILE';
+                node.image.filepath=hpbk_path;
+
+                ntree.links.new(omix.outputs[0], cout.inputs[0]);
+
+        SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+        ntree.nodes.active=abake;
+
+        impath=rtpath+f"{key}.png";
+        cbake.image.save_render(impath);
+
+        ntree.links.new(amix.outputs[0], cout.inputs[0]);
+        SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+        cbake.image.source='FILE';
+        cbake.image.filepath=impath;
+        STALPHA(cbake.image, abake.image);
+        cbake.image.save_render(impath);
+
+        cbake.image.source='GENERATED';
+        ntree.nodes.active=cbake;
+
+        ntree.links.new(cmix.outputs[0], cout.inputs[0]);
+
+#   ---     ---     ---     ---     ---
+# bake curv+fresnel
+
+    print("curv... ");
+
+    for h in range(4):
+
+        node=ntree.nodes[f"IM{h}"];
+        if node.image.name != "DUMMY":
+            base=par.name; imname=f"{base}_fresnel{h}";
+            if imname not in bpy.data.images:
+                im=bpy.data.images.new(imname, height=2, width=2);
+                im.source='FILE'; im.filepath=rtpath+f"fresnel{h}.png"
+
+            node.image=bpy.data.images[imname];
+
+    ncomb=ntree.nodes["NCOMB"];
+    ncomb.image.source='FILE';
+    ncomb.image.filepath=rtpath+"normal.png";
+
+    ntree.nodes.active=cbake;
+    scurvy=ntree.nodes["SCURVY"];
+
+    ntree.links.new(scurvy.outputs[0], cout.inputs[0]);
+    SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+    ntree.nodes.active=abake; impath=rtpath+f"curv.png";
+    cbake.image.save_render(impath);
+
+    ntree.links.new(cmix.outputs[0], cout.inputs[0]);
+    SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+    cbake.image.source='FILE';
+    cbake.image.filepath=impath;
+    STALPHA(cbake.image, abake.image);
+    cbake.image.save_render(impath);
+
+    ntree.links.new(cmix.outputs[0], cout.inputs[0]);
+
+#   ---     ---     ---     ---     ---
+# walkback changes
+
+    for h in range(4):
+
+        node=ntree.nodes[f"IM{h}"];
+        if node.image.name != "DUMMY":
+            base=par.name; imname=f"{base}_albedo{h}";
+            node.image=bpy.data.images[imname];
+            node.image.reload();
+
+    ntree.links.new(ntree.nodes["OUTCOLOR"].outputs[0], ntree.nodes["MATOUT"].inputs[0]);
+
+#   ---     ---     ---     ---     ---
+
+def GTOTHERS(self, context):
+    return [tuple(["_", "NONE", ""]), tuple([context.object.name, "SELF", ""])]\
+           +[tuple([ob.name, ob.name, ""]) for ob in bpy.data.objects
+            if ob != context.object and isinstance(ob.data, bpy.types.Mesh)]
+
+def STPAR(self, context):
+    self.hp=bpy.data.objects[self.hp_name] if self.hp_name != '_' else None;
 
 def UPPROJ(self, context):
 
@@ -550,10 +827,43 @@ class LYT_MixObjSettings(PropertyGroup):
 
     );
 
+    res_aa=IntProperty(
+
+        name        = "HP Scale",
+        description = "Smooths the high poly bake by rendering at a larger size",
+
+        default     = 1,
+        min         = 1,
+        max         = 16
+
+    );
+
     par=PointerProperty(type=Object);
-    final=PointerProperty(type=Object);
+    hp=PointerProperty(type=Object);
+
+    hp_name=EnumProperty(
+
+        items       = GTOTHERS,
+        update      = STPAR,
+
+        name        = "High poly",
+        description = "Select high poly version for AO and normal baking"
+
+    );
 
 #   ---     ---     ---     ---     ---
+
+class LYT_BKPAR(Operator):
+
+    bl_idname      = "lytbkr.bkpar";
+    bl_label       = "Bakes AO and normal of selected high-poly";
+
+    bl_description = "Bake AO and normal of selected high-poly mesh to active object";
+
+#   ---     ---     ---     ---     ---
+
+    def execute(self, context):
+        BKPAR(); return {'FINISHED'};
 
 class LYT_BKMATID(Operator):
 
@@ -589,6 +899,18 @@ class LYT_BKMIX(Operator):
     def execute(self, context):
         BKMIXMAT(); return {'FINISHED'};
 
+class LYT_BKUNI(Operator):
+
+    bl_idname      = "lytbkr.bkuni";
+    bl_label       = "Bakes unified material";
+
+    bl_description = "Bake unified material from the result of multiple mixes";
+
+#   ---     ---     ---     ---     ---
+
+    def execute(self, context):
+        BKUNI(); return {'FINISHED'};
+
 #   ---     ---     ---     ---     ---
 
 class LYT_mixingPanel(Panel):
@@ -607,15 +929,37 @@ class LYT_mixingPanel(Panel):
         return isinstance(context.object.data, bpy.types.Mesh);
 
     def draw(self, context):
-        layout=self.layout; row=layout.row();
-        row.operator("lytbkr.bkmatid", text="BAKE MATERIAL IDS", icon="COLOR");
+        layout=self.layout;
 
-        if "_COLORMASK" in context.object.active_material.name:
+        row=layout.row();
+        row.prop(context.object.lytools, "f0");
+        row.prop(context.object.lytools, "res");
+
+        draw_bkmatid_button=len([
+
+            1 for m in context.object.data.materials
+            if "_COLORMASK" in m.name
+            or "_KOLORMASK" in m.name
+
+        ]) == 0; 
+
+        if draw_bkmatid_button:
+
+            layout.separator(); row=layout.row();
+            row.prop(context.object.lytools, "hp_name");
+
+            if context.object.lytools.hp:
+                row=layout.row(); row.prop(context.object.lytools, "res_aa");
+                row.operator("lytbkr.bkpar", text="BAKE HI-POLY", icon="MOD_SUBSURF");
+
+            layout.separator(); row=layout.row();
+            row.operator("lytbkr.bkmatid", text="BAKE MATERIAL IDS", icon="COLOR");
+
+        elif "_COLORMASK" in context.object.active_material.name:
 
             mat=context.object.active_material; lyt=mat.lytools;
             layout.separator();
 
-            row=layout.row(); row.prop(context.object.lytools, "f0");
             row=layout.row(); row.prop(context.object.lytools, "mix_idex");
 
             layout.separator();
@@ -634,9 +978,19 @@ class LYT_mixingPanel(Panel):
                 if prop in ["tol", "cur"]:
                     layout.separator();
 
-            layout.separator();
-            row=layout.row(); row.prop(context.object.lytools, "res");
+            layout.separator(); row=layout.row();
             row.operator("lytbkr.bkmix", text="BAKE MIX", icon="RENDER_STILL");
+
+        elif "_KOLORMASK" in context.object.active_material.name:
+            mat=context.object.active_material; lyt=mat.lytools;
+            layout.separator(); row=layout.row();
+
+            name=lyt.name if lyt.name else "EMPTY";
+            row.label("Current: "); row.prop(lyt, "cur", text=name);
+            row=layout.row(); row.prop(lyt, "tol");
+
+            row=layout.row();
+            row.operator("lytbkr.bkuni", text="UNIFY", icon="RENDER_STILL");
 
 #   ---     ---     ---     ---     ---
 
@@ -646,12 +1000,16 @@ def register():
     register_class(LYT_mixingPanel);
     register_class(LYT_BKMATID);
     register_class(LYT_BKMIX);
+    register_class(LYT_BKPAR);
+    register_class(LYT_BKUNI);
     Object.lytools=PointerProperty(type=LYT_MixObjSettings);
     Material.lytools=PointerProperty(type=LYT_MixMatSettings);
 
 def unregister():
     del Object.lytools;
     del Material.lytools;
+    unregister_class(LYT_BKUNI);
+    unregister_class(LYT_BKPAR);
     unregister_class(LYT_BKMIX);
     unregister_class(LYT_BKMATID);
     unregister_class(LYT_mixingPanel);
