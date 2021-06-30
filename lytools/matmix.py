@@ -4,6 +4,7 @@ from bpy.types import Panel, Operator, PropertyGroup, Object, Material, Scene;
 from bpy.utils import register_class, unregister_class;
 
 from .blmod    import SHUT_OPS;
+from .importer import WPIMP;
 
 #   ---     ---     ---     ---     ---
 
@@ -256,7 +257,7 @@ def BKMIXMAT():
 
             node=ntree.nodes[f"IM{h}"];
             if node.image.name != "DUMMY":
-                base=node.image.name.split("_")[0];
+                base=(node.image.name.split("_")[0]).split(".")[0];
                 basemat=bpy.data.materials[base];
                 v=basemat.node_tree.nodes["SHADER"].inputs[7].default_value;
                 fmix.inputs[4+h].default_value=v;
@@ -594,6 +595,18 @@ def BKUNI():
 
     ntree.links.new(ntree.nodes["OUTCOLOR"].outputs[0], ntree.nodes["MATOUT"].inputs[0]);
 
+def CLNUP():
+    images=[im for im in bpy.data.images if im.name!="DUMMY" and "BAKE" not in im.name];
+    for image in images: bpy.data.images.remove(image);
+
+    for material in bpy.data.materials:
+        if material.name!="COLORMASKING":
+            bpy.data.materials.remove(material);
+
+    for mesh in bpy.data.meshes: bpy.data.meshes.remove(mesh);
+
+    WPIMP(); bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath);
+
 #   ---     ---     ---     ---     ---
 
 def GTOTHERS(self, context):
@@ -911,6 +924,18 @@ class LYT_BKUNI(Operator):
     def execute(self, context):
         BKUNI(); return {'FINISHED'};
 
+class LYT_CLNUP(Operator):
+
+    bl_idname      = "lytbkr.clnup";
+    bl_label       = "Wipes the file clean";
+
+    bl_description = "NO UNDO: cleans up blend and saves";
+
+#   ---     ---     ---     ---     ---
+
+    def execute(self, context):
+        CLNUP(); return {'FINISHED'};
+
 #   ---     ---     ---     ---     ---
 
 class LYT_mixingPanel(Panel):
@@ -1002,12 +1027,14 @@ def register():
     register_class(LYT_BKMIX);
     register_class(LYT_BKPAR);
     register_class(LYT_BKUNI);
+    register_class(LYT_CLNUP);
     Object.lytools=PointerProperty(type=LYT_MixObjSettings);
     Material.lytools=PointerProperty(type=LYT_MixMatSettings);
 
 def unregister():
     del Object.lytools;
     del Material.lytools;
+    unregister_class(LYT_CLNUP);
     unregister_class(LYT_BKUNI);
     unregister_class(LYT_BKPAR);
     unregister_class(LYT_BKMIX);

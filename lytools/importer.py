@@ -33,6 +33,17 @@ LDMEM={'APD':{}, 'LNK':{}};
 
 #   ---     ---     ---     ---     ---
 
+def WPIMP():
+    path=bpy.context.blend_data.filepath.replace(".blend", ".lymp");
+    n=bpy.path.basename(bpy.context.blend_data.filepath).replace(".blend", "");
+
+    d="{'APD':{}, 'LNK':{}}"; d=eval(d);
+
+    with open(path, 'w+') as file:
+        file.write(str(d));
+
+    global LDMEM; LDMEM=d; bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath);
+
 def SVIMP(block, cat, src, lnk=0):
 
     path=bpy.context.blend_data.filepath.replace(".blend", ".lymp");
@@ -64,6 +75,8 @@ def SVIMP(block, cat, src, lnk=0):
         file.write(str(d));
 
     global LDMEM; LDMEM=d;
+
+    bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath);
     return notif;
 
 #   ---     ---     ---     ---     ---
@@ -147,7 +160,7 @@ def DLBLOCK(target, lnk):
     with open(path, 'w+') as file:
         file.write(str(d));
 
-    LDMEM=d;
+    LDMEM=d; bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath)
 
 #   ---     ---     ---     ---     ---
 
@@ -314,6 +327,11 @@ class LYT_importPanel(Panel):
 
                         oppy.target=key;
                         oppy.lnk=0;
+
+        if hasattr(bpy.ops, "lytbkr"):
+            if hasattr(bpy.ops.lytbkr, "clnup"):
+                layout.separator(); row=layout.row();
+                row.operator("lytbkr.clnup", text="CLEAN UP", icon="LOAD_FACTORY");
 
 #   ---     ---     ---     ---     ---
 

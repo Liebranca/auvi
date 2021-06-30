@@ -70,6 +70,9 @@ def MATGNSIS():
         im.image=bpy.data.images[imname];
         if name=="NORMAL": im.color_space='NONE';
 
+    name=(lyt.mat_f1.split("\\")[-1])[:-1];
+    mat.name=bpy.context.object.name=bpy.context.object.data.name=name;
+
     ntree.links.new(shd.outputs[0], out.inputs[0]);
     ntree.links.new(shd.outputs[1], out.inputs[1]);
 
@@ -121,6 +124,8 @@ def UPIMPATH(self, context):
         node=mat.node_tree.nodes[imname];
         node.image.filepath=lyt.mat_f1+imname.lower()+'.png';
 
+    name=(lyt.mat_f1.split("\\")[-1])[:-1];
+    mat.name=bpy.context.object.name=bpy.context.object.data.name=name;
     bpy.ops.file.make_paths_relative();
 
 #   ---     ---     ---     ---     ---
