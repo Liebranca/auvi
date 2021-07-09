@@ -12,6 +12,7 @@ from bpy.props import (
     FloatProperty,
     FloatVectorProperty,
     IntProperty,
+    BoolProperty,
     PointerProperty
 
 );
@@ -53,6 +54,9 @@ def MATGNSIS():
 #   ---     ---     ---     ---     ---
 
     matname=lyt.mat_f1.split("\\")[-1]; y=600;
+    mth=nodes.new('ShaderNodeMath'); mth.location=[500, -525];
+    mth.name=mth.label="FRESNEL"; mth.inputs[0].default_value=1;
+    mth.operation='SUBTRACT';
 
     for name in IMTYPES:
         im=nodes.new('ShaderNodeTexImage'); im.location=[500, y];
@@ -70,8 +74,11 @@ def MATGNSIS():
         im.image=bpy.data.images[imname];
         if name=="NORMAL": im.color_space='NONE';
 
-    name=(lyt.mat_f1.split("\\")[-1])[:-1];
-    mat.name=bpy.context.object.name=bpy.context.object.data.name=name;
+        if name=="CURV":
+            ntree.links.new(im.outputs[1], mth.inputs[1]);
+
+    #name=(lyt.mat_f1.split("\\")[-1])[:-1];
+    #mat.name=bpy.context.object.name=bpy.context.object.data.name=name;
 
     ntree.links.new(shd.outputs[0], out.inputs[0]);
     ntree.links.new(shd.outputs[1], out.inputs[1]);
@@ -136,6 +143,18 @@ def UPMAT(self, context):
 
     nd=ntree.nodes["SHADER"];
     nd.inputs[7].default_value=lyt.mat_fresnel;
+
+def IMFRES(self, context):
+    mat=context.object.active_material;
+    lyt=mat.lytools; ntree=mat.node_tree;
+
+    if lyt.mat_imfres:
+        ntree.links.new(ntree.nodes["FRESNEL"].outputs[0], ntree.nodes["SHADER"].inputs[7]);
+
+    else:
+        for link in ntree.links:
+            if link.from_node==ntree.nodes["FRESNEL"]:
+                ntree.links.remove(link); break;
 
 def UPPROJ(self, context):
 
@@ -230,6 +249,16 @@ class LYT_MaterialSettings(PropertyGroup):
 
     );
 
+    mat_imfres=BoolProperty (
+
+        name        = "From curv",
+        description = "Use curvmap's alpha channel as fresnel value",
+
+        default     = 0,
+        update      = IMFRES
+
+    );
+
 #   ---     ---     ---     ---     ---
 
 class LYT_INITMAT(Operator):
@@ -259,7 +288,12 @@ class LYT_materialPanel(Panel):
     
     @classmethod
     def poll(cls, context):
-        return context.object!=None;
+        ob=context.object;
+        if ob:
+            if isinstance(ob, bpy.types.Object):
+                return ob.active_material!=None;
+
+        return 0;
 
     def draw(self, context):
 
@@ -289,7 +323,8 @@ class LYT_materialPanel(Panel):
 
                 layout.separator();
 
-                row=layout.row(); row.prop(lyt, "mat_fresnel");
+                row=layout.row(); row.prop(lyt, "mat_imfres");
+                if not lyt.mat_imfres: row.prop(lyt, "mat_fresnel");
 
 #   ---     ---     ---     ---     ---
 

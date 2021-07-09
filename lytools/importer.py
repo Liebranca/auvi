@@ -32,6 +32,38 @@ DTYPES=([
 LDMEM={'APD':{}, 'LNK':{}};
 
 #   ---     ---     ---     ---     ---
+# dull way of making sure certain datablocks are __linked__ from
+# certain locations within the data folder on *every single*
+# non-tool specific blendfile (basically all files derived from _asset.blend)
+
+PRMBLKS={                                   # add entries to this dict at your own peril;
+
+    "node_groups":["LyShader"]
+
+};
+
+def PERMABLOCKS():
+    w=list(os.walk(DROOT)); folds=[w[0][0]+'\\'+s for s in w[0][1]]; blends=[];
+
+    for fold in folds:
+        w=list(os.walk(fold));
+        for pis in w:
+            for s in pis[2]:
+                if ".blend" in s and ".blend1" not in s:
+                    blends.append(pis[0]+'\\'+s);
+
+    for blend in blends:
+        if "matlib.blend" in blend:
+            with bpy.data.libraries.load(blend, link=1, relative=1) \
+            as (data_from, data_to):
+
+                for cath, blocks in PRMBLKS.items():
+                    blib=[b for b in getattr(data_from, cath) if b in blocks];
+                    for block in blib:
+                        if block not in getattr(data_to, cath):
+                            getattr(data_to, cath).append(block);
+
+#   ---     ---     ---     ---     ---
 
 def WPIMP():
     path=bpy.context.blend_data.filepath.replace(".blend", ".lymp");

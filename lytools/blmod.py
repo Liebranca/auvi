@@ -27,4 +27,6 @@ def reg(n):
         return module.register, module.unregister;
 
     else:
-        return lytdummy, lytdummy;
+        from .matlib import register, unregister
+        from .importer import PERMABLOCKS; PERMABLOCKS();
+        return register, unregister;
