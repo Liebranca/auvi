@@ -125,29 +125,29 @@ def BKMATIDS(me):
 #   ---     ---     ---     ---     ---
 # assign textures
 
-    tot=len(ob.data.materials);
+    tot=len(ob.data.materials); j=0;
     for x in range(h):
         cmat=bpy.data.materials["COLORMASKING"].copy();
 
-        cmat.name=(ob.lytools.par.name)+f'_COLORMASK{x}'; i=0; j=0;
+        cmat.name=(ob.lytools.par.name)+f'_COLORMASK{x}'; i=0;
         ob.data.materials[x]=cmat; nodes=cmat.node_tree.nodes;
 
         for mat in me.materials:
             omat=me.materials[j];
-            nodes[f"IM{i}"].image=omat.node_tree.nodes["ALBEDO"].image;
+            nodes[f"IM{i}"].image.filepath=omat.node_tree.nodes["ALBEDO"].image.filepath;
 
             i=0 if i==3 else i+1; j+=1;
 
     for i in range(len(ob.data.materials)-1, -1, -1):
         ob.lytools.mix_idex=i;
 
-    cl.select=0;
+    cl.select=0; ob.data.vertex_colors.active_index=0;
 
 #   ---     ---     ---     ---     ---
 
 def STALPHA(col, alpha):
     a=np.array(col.pixels); b=np.array((alpha.pixels[:])[0::4]);
-    a[3::4]=np.multiply(a[3::4], b); col.pixels=a;
+    a[3::4]=0; a[3::4]=np.add(a[3::4], b); col.pixels=a;
 
 def BKMIXMAT():
 
@@ -203,9 +203,11 @@ def BKMIXMAT():
             mat=ob.data.materials[i]; ntree=mat.node_tree;
             for h in range(4):
                 node=ntree.nodes[f"IM{h}"];
-                if node.image.name != "DUMMY":
-                    base=node.image.name.split("_")[0];
-                    node.image=bpy.data.images[f"{base}_{key}"];
+                if node.image.filepath:
+                    path_split=node.image.filepath.split("\\");
+                    base=(path_split[-1]).split("_")[0]; path="\\".join(path_split[:-1]);
+                    node.image.filepath=f"{path}\\{base}_{key}.png";
+                    node.image.use_alpha=0;
 
         SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
 
@@ -220,6 +222,10 @@ def BKMIXMAT():
             amix=ntree.nodes["MIXALPHA"];
             cout=ntree.nodes["OUTCOLOR"];
             ntree.links.new(amix.outputs[0], cout.inputs[0]);
+
+            for h in range(4):
+                node=ntree.nodes[f"IM{h}"];
+                if node.image.source: node.image.use_alpha=1;
 
         SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
 
@@ -256,8 +262,9 @@ def BKMIXMAT():
         for h in range(4):
 
             node=ntree.nodes[f"IM{h}"];
-            if node.image.name != "DUMMY":
-                base=(node.image.name.split("_")[0]).split(".")[0];
+            if node.image.filepath:
+                path_split=node.image.filepath.split("\\");
+                base=(path_split[-1]).split("_")[0];
                 basemat=bpy.data.materials[base];
                 v=basemat.node_tree.nodes["SHADER"].inputs[7].default_value;
                 fmix.inputs[4+h].default_value=v;
@@ -282,10 +289,11 @@ def BKMIXMAT():
         for h in range(4):
 
             node=ntree.nodes[f"IM{h}"];
-            if node.image.name != "DUMMY":
-                base=node.image.name.split("_")[0];
-                node.image=bpy.data.images[base+"_albedo"];
-                node.image.reload();
+            if node.image.filepath:
+                path_split=node.image.source.split("\\");
+                base=(path_split[-1]).split("_")[0]; path="\\".join(path_split[:-1]);
+                node.image.filepath=f"{path}\\{base}_albedo.png";
+                #node.image.reload();
 
         ntree.links.new(ntree.nodes["OUTCOLOR"].outputs[0], ntree.nodes["MATOUT"].inputs[0]);
 
@@ -318,7 +326,10 @@ def BKMIXMAT():
             im=bpy.data.images.new(imname, height=ob.lytools.res, width=ob.lytools.res);
             im.source='FILE'; im.filepath=f"{rtpath}albedo{i}.png";
 
-        imnode.image=im;
+        imnode.image=bpy.data.images[imname];
+
+    for poly in ob.data.polygons:
+        poly.use_smooth=False;
 
     cl.select=0;
 
@@ -481,14 +492,14 @@ def BKUNI():
 
         for h in range(4):
             node=ntree.nodes[f"IM{h}"];
-            if node.image.name != "DUMMY":
+            if node.image.filepath:
                 base=par.name; imname=f"{base}_{key}{h}";
                 if imname not in bpy.data.images:
                     bpy.data.images.new(imname, height=2, width=2);
 
                 node.image=bpy.data.images[imname];
 
-                node.image.source='FILE';
+                node.image.source='FILE'; node.image.use_alpha=0;
                 node.image.filepath=rtpath+f"{key}{h}.png"
 
         if key=="normal":
@@ -530,6 +541,10 @@ def BKUNI():
         impath=rtpath+f"{key}.png";
         cbake.image.save_render(impath);
 
+        for h in range(4):
+            node=ntree.nodes[f"IM{h}"];
+            if node.image.filepath: node.image.use_alpha=1;
+
         ntree.links.new(amix.outputs[0], cout.inputs[0]);
         SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
 
@@ -551,13 +566,13 @@ def BKUNI():
     for h in range(4):
 
         node=ntree.nodes[f"IM{h}"];
-        if node.image.name != "DUMMY":
+        if node.image.filepath:
             base=par.name; imname=f"{base}_fresnel{h}";
             if imname not in bpy.data.images:
                 im=bpy.data.images.new(imname, height=2, width=2);
                 im.source='FILE'; im.filepath=rtpath+f"fresnel{h}.png"
 
-            node.image=bpy.data.images[imname];
+            node.image=bpy.data.images[imname]; node.image.use_alpha=0;
 
     ncomb=ntree.nodes["NCOMB"];
     ncomb.image.source='FILE';
@@ -565,6 +580,10 @@ def BKUNI():
 
     ntree.nodes.active=cbake;
     scurvy=ntree.nodes["SCURVY"];
+
+    for h in range(4):
+        node=ntree.nodes[f"IM{h}"];
+        if node.image.filepath: node.image.use_alpha=1;
 
     ntree.links.new(scurvy.outputs[0], cout.inputs[0]);
     SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
@@ -588,10 +607,10 @@ def BKUNI():
     for h in range(4):
 
         node=ntree.nodes[f"IM{h}"];
-        if node.image.name != "DUMMY":
+        if node.image.filepath:
             base=par.name; imname=f"{base}_albedo{h}";
             node.image=bpy.data.images[imname];
-            node.image.reload();
+            #node.image.reload();
 
     ntree.links.new(ntree.nodes["OUTCOLOR"].outputs[0], ntree.nodes["MATOUT"].inputs[0]);
 
@@ -605,7 +624,12 @@ def CLNUP():
 
     for mesh in bpy.data.meshes: bpy.data.meshes.remove(mesh);
 
-    WPIMP(); bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath);
+    WPIMP();
+
+    for image in bpy.data.images:
+        image.source='GENERATED';
+
+    bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath);
 
 #   ---     ---     ---     ---     ---
 

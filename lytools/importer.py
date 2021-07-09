@@ -135,7 +135,12 @@ def GTBLOCK(lnk):
 
         setattr(data_to, imp.f2, blocks);
 
-    GTSCN_REL(None, bpy.context); block_name=getattr(data_to, imp.f2)[0].name;
+    ob=getattr(data_to, imp.f2)[0];
+    if imp.f2=='objects':
+        l_ob=bpy.context.scene.objects.link(ob).object;
+        l_ob.location=bpy.context.scene.cursor_location;
+
+    GTSCN_REL(None, bpy.context); block_name=ob.name;
     return SVIMP(block_name, imp.f2, imp.rel, lnk);
 
 def DLBLOCK(target, lnk):
