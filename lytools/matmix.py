@@ -41,10 +41,10 @@ def BKMATIDS(me):
 #   ---     ---     ---     ---     ---
 # do some math
 
-    i=0; h=1;
+    i=0; h=0;
     for mat in me.materials:
-        j=i+(4*(h-1)); i=0 if i==3 else i+1;
         if not i: h+=1;
+        j=i+(4*(h-1)); i=0 if i==3 else i+1;
 
 #   ---     ---     ---     ---     ---
 # clone original and do castling
@@ -129,13 +129,17 @@ def BKMATIDS(me):
     for x in range(h):
         cmat=bpy.data.materials["COLORMASKING"].copy();
 
+        if x:
+            for y in range(4):
+                imnode=cmat.node_tree.nodes[f"IM{y}"];
+                imnode.image=imnode.image.copy();
+
         cmat.name=(ob.lytools.par.name)+f'_COLORMASK{x}'; i=0;
         ob.data.materials[x]=cmat; nodes=cmat.node_tree.nodes;
+        jp=j+4 if len(me.materials)-j > 4 else len(me.materials);
 
-        for mat in me.materials:
-            omat=me.materials[j];
-            nodes[f"IM{i}"].image.filepath=omat.node_tree.nodes["ALBEDO"].image.filepath;
-
+        for mat in me.materials[j:jp]:
+            nodes[f"IM{i}"].image.filepath=mat.node_tree.nodes["ALBEDO"].image.filepath;
             i=0 if i==3 else i+1; j+=1;
 
     for i in range(len(ob.data.materials)-1, -1, -1):
@@ -195,7 +199,7 @@ def BKMIXMAT():
 #   ---     ---     ---     ---     ---
 # bake first three maps
 
-    for key in ["albedo", "orm", "normal"]:
+    for key in ["albedo", "orm", "normal", "curv"]:
 
         print(f"{key}, ", end='', flush=1);
 
@@ -250,42 +254,10 @@ def BKMIXMAT():
             ntree.links.new(cmix.outputs[0], cout.inputs[0]);
 
 #   ---     ---     ---     ---     ---
-# set fresnel out and bake
-
-    print("fresnel... ");
-
-    for i in range(len(ob.data.materials)):
-
-        mat=ob.data.materials[i]; ntree=mat.node_tree;
-        fmix=ntree.nodes["FRESNELMIX"];
-
-        for h in range(4):
-
-            node=ntree.nodes[f"IM{h}"];
-            if node.image.filepath:
-                path_split=node.image.filepath.split("\\");
-                base=(path_split[-1]).split("_")[0];
-                basemat=bpy.data.materials[base];
-                v=basemat.node_tree.nodes["SHADER"].inputs[7].default_value;
-                fmix.inputs[4+h].default_value=v;
-
-        ntree.links.new(fmix.outputs[0], ntree.nodes["MATOUT"].inputs[0]);
-
-    SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
-
-    for i in range(len(ob.data.materials)):
-        mat=ob.data.materials[i]; ntree=mat.node_tree;
-
-        cbake=ntree.nodes[f"CBAKE{i}"];
-        cbake.image.save_render(rtpath+f"fresnel{i}.png");
-
-        cmix=ntree.nodes["MIXCOLOR"];
-        cout=ntree.nodes["OUTCOLOR"];
-        ntree.links.new(cmix.outputs[0], cout.inputs[0]);
-
-#   ---     ---     ---     ---     ---
 # walkback changes
 
+    for i in range(len(ob.data.materials)):
+        mat=ob.data.materials[i]; ntree=mat.node_tree;
         for h in range(4):
 
             node=ntree.nodes[f"IM{h}"];
@@ -484,9 +456,9 @@ def BKUNI():
     omix=ntree.nodes["MIXORM"];
 
 #   ---     ---     ---     ---     ---
-# bake first three maps
+# initial bake
 
-    for key in ["albedo", "orm", "normal"]:
+    for key in ["albedo", "orm", "normal", "curv"]:
 
         print(f"{key}, ", end='', flush=1);
 
@@ -561,43 +533,35 @@ def BKUNI():
 #   ---     ---     ---     ---     ---
 # bake curv+fresnel
 
-    print("curv... ");
-
-    for h in range(4):
-
-        node=ntree.nodes[f"IM{h}"];
-        if node.image.filepath:
-            base=par.name; imname=f"{base}_fresnel{h}";
-            if imname not in bpy.data.images:
-                im=bpy.data.images.new(imname, height=2, width=2);
-                im.source='FILE'; im.filepath=rtpath+f"fresnel{h}.png"
-
-            node.image=bpy.data.images[imname]; node.image.use_alpha=0;
+    print("combining curv... ");
 
     ncomb=ntree.nodes["NCOMB"];
     ncomb.image.source='FILE';
     ncomb.image.filepath=rtpath+"normal.png";
+    ncomb.image.use_alpha=0;
+
+    bcurv=ntree.nodes["BCURV"];
+    bcurv.image.source='FILE';
+    bcurv.image.filepath=rtpath+"curv.png"
+    ncomb.image.use_alpha=0;
 
     ntree.nodes.active=cbake;
     scurvy=ntree.nodes["SCURVY"];
 
-    for h in range(4):
-        node=ntree.nodes[f"IM{h}"];
-        if node.image.filepath: node.image.use_alpha=1;
-
     ntree.links.new(scurvy.outputs[0], cout.inputs[0]);
     SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
 
-    ntree.nodes.active=abake; impath=rtpath+f"curv.png";
+    ntree.nodes.active=abake; impath=rtpath+f"curv_col.png";
     cbake.image.save_render(impath);
 
-    ntree.links.new(cmix.outputs[0], cout.inputs[0]);
+    bcurv.image.use_alpha=1;
+    ntree.links.new(bcurv.outputs[1], cout.inputs[0]);
     SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
 
     cbake.image.source='FILE';
     cbake.image.filepath=impath;
     STALPHA(cbake.image, abake.image);
-    cbake.image.save_render(impath);
+    cbake.image.save_render(rtpath+f"curv.png");
 
     ntree.links.new(cmix.outputs[0], cout.inputs[0]);
 
@@ -615,7 +579,7 @@ def BKUNI():
     ntree.links.new(ntree.nodes["OUTCOLOR"].outputs[0], ntree.nodes["MATOUT"].inputs[0]);
 
 def CLNUP():
-    images=[im for im in bpy.data.images if im.name!="DUMMY" and "BAKE" not in im.name];
+    images=[im for im in bpy.data.images if 'IM' not in im.name and 'BAKE' not in im.name];
     for image in images: bpy.data.images.remove(image);
 
     for material in bpy.data.materials:
@@ -627,7 +591,7 @@ def CLNUP():
     WPIMP();
 
     for image in bpy.data.images:
-        image.source='GENERATED';
+        if 'IM' not in image.name: image.source='GENERATED';
 
     bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath);
 

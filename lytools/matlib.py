@@ -85,7 +85,7 @@ def MATGNSIS():
 
 #   ---     ---     ---     ---     ---
 
-NDCHECK=["TEXCOORD", "SHADER", "OUT", "VECMATH"] + [key for key in IMTYPES];
+NDCHECK=["TEXCOORD", "SHADER", "OUT", "VECMATH", "FRESNEL"] + [key for key in IMTYPES];
 
 def VALIDATE(mat):
 

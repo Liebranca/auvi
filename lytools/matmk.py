@@ -339,6 +339,17 @@ class LYT_SceneSettings(PropertyGroup):
 
     );
 
+    bkr_fresnel=FloatProperty (
+
+        name        = "Base Fresnel",
+        description = "Base fresnel value",
+
+        default     = 0.075,
+        min         = 0.075,
+        max         = 1.0
+
+    );
+
 #   ---     ---     ---     ---     ---
 
 LYT_ATTRS=([
@@ -360,7 +371,9 @@ LYT_ATTRS=([
 
     "bkr_emitmask",
     "bkr_emitbase",
-    "bkr_emittol"
+    "bkr_emittol",
+
+    "bkr_fresnel"
 
 ]);
 
@@ -384,6 +397,9 @@ def LDLYTX(lyt):
 
     d=eval(s);
     for k in LYT_ATTRS:
+        if k not in d:
+            continue;
+
         if k == "bkr_metmask":
             lyt.bkr_metmask[:]=d[k][:];
         elif k == "bkr_emitmask":
@@ -516,22 +532,13 @@ class LYT_BKOGL(Operator):
 
         node=GTBKR_NODE("SCURVY");
         links.new(node.outputs[0], out_node.inputs[0]);
-
-        """ cycles bake, deprecated for this tool
-
-        context.scene.cycles.bake_type='EMIT'; SLBKR_NODE("G_BAKETO");
-
-        node=GTBKR_NODE("G_BAKETO");
-        node.image.generated_width=lyt.bkr_size*lyt.bkr_res;
-        node.image.generated_height=lyt.bkr_size*lyt.bkr_res;
-
-        bpy.ops.object.bake(type='EMIT');
-
-        """
+        mix_node.inputs[0].default_value=1.0-lyt.bkr_fresnel;
 
         print("Baking curvature... ");
         path=rtpath+"curv.png"; bpy.ops.render.opengl();
         bpy.data.images["Render Result"].save_render(path);
+
+        mix_node.inputs[0].default_value=1.0;
 
 #   ---     ---     ---     ---     ---
 
@@ -613,6 +620,7 @@ class LYT_renderPanel(Panel):
                 row=layout.row(); row.prop(lyt, "bkr_nsng2");
                 row=layout.row(); row.prop(lyt, "bkr_nsng3");
                 row=layout.row(); row.prop(lyt, "bkr_nsng4");
+                row=layout.row(); row.prop(lyt, "bkr_fresnel");
 
                 layout.separator();
                 row=layout.row(); row.label("Metalness settings:");
