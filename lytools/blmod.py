@@ -22,7 +22,7 @@ def reg(n):
         from .importer import register as reg_lymport;
         reg_lymport();
 
-    if n in ["matlib", "matmk", "matmix"]:
+    if n in ["matlib", "matmk", "matmix", "mapping"]:
         module=importlib.import_module('.'+n, 'lytools');
         return module.register, module.unregister;
 

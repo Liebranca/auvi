@@ -262,10 +262,9 @@ def BKMIXMAT():
 
             node=ntree.nodes[f"IM{h}"];
             if node.image.filepath:
-                path_split=node.image.source.split("\\");
+                path_split=node.image.filepath.split("\\");
                 base=(path_split[-1]).split("_")[0]; path="\\".join(path_split[:-1]);
                 node.image.filepath=f"{path}\\{base}_albedo.png";
-                #node.image.reload();
 
         ntree.links.new(ntree.nodes["OUTCOLOR"].outputs[0], ntree.nodes["MATOUT"].inputs[0]);
 
@@ -304,6 +303,26 @@ def BKMIXMAT():
         poly.use_smooth=False;
 
     cl.select=0;
+
+def BYETEMPS(path):
+
+    files=list(os.walk(path))[0][2];
+
+    for file in files:
+        filepath=f"{path}\\{file}"; x=0;
+
+        for i in range(4):
+            if file.endswith(f"{i}.png"):
+                os.system(f"del {filepath}");
+                x=1; break;
+
+        if x: continue;
+
+        elif file.endswith("_hpnormal.png") or file.endswith("_hpao.png"):
+            os.system(f"del {filepath}");
+
+        elif file.endswith("curv_col.png"):
+            os.system(f"del {filepath}");
 
 #   ---     ---     ---     ---     ---
 
@@ -954,7 +973,7 @@ class LYT_mixingPanel(Panel):
             if "_COLORMASK" in m.name
             or "_KOLORMASK" in m.name
 
-        ]) == 0; 
+        ]) == 0;
 
         if draw_bkmatid_button:
 
