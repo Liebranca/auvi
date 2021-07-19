@@ -147,6 +147,362 @@ def BKMATIDS(me):
 
     cl.select=0; ob.data.vertex_colors.active_index=0;
 
+def BKASIS():
+
+    print("\nASIS BAKE:");
+
+    ob=bpy.context.object; par=ob.lytools.hp; self_baked=ob==par;
+
+    folder=f"{ob.lytools.f0}\\textures\\{ob.name}"
+    if not os.path.exists(folder): os.makedirs(folder);
+
+    rtpath=f"{folder}\\{ob.name}_";
+
+    rend=bpy.context.scene.render;
+    rend.bake.use_selected_to_active=1;
+    rend.engine='CYCLES';
+
+    res=ob.lytools.res;
+    rend.bake.margin=int(res/32);
+
+    rend.image_settings.file_format='PNG';
+    rend.image_settings.color_mode='RGBA';
+
+#   ---     ---     ---     ---     ---
+# clone par
+
+    par=bpy.context.scene.objects.link(par.copy()).object;
+    par.data=par.data.copy();
+
+    bm=bmesh.new();
+    bm.from_object(par, bpy.context.scene, face_normals=1);
+    bm.to_mesh(par.data);
+    bm.free();
+
+    for obj in bpy.context.selected_objects:
+        obj.select=0;
+
+    ob.select=1; par.select=1;
+    bpy.context.scene.objects.active=ob;
+
+#   ---     ---     ---     ---     ---
+# setup missing nodes
+
+    for mat in par.data.materials:
+
+        ntree=mat.node_tree;
+        if "CY_OUT" not in ntree.nodes:
+            cyout=ntree.nodes.new("ShaderNodeOutputMaterial");
+            cyout.name=cyout.label="CY_OUT";
+
+        if "SHDEMIT" not in ntree.nodes:
+            cyout=ntree.nodes.new("ShaderNodeEmission");
+            cyout.name=cyout.label="SHDEMIT";
+
+        if "SCURVY" not in ntree.nodes:
+            shd=ntree.nodes.new('ShaderNodeGroup');
+            shd.node_tree=bpy.data.node_groups["SCURVYX"];
+            shd.name=shd.label="SCURVY";
+
+        ntree.links.new(ntree.nodes["SHDEMIT"].outputs[0], ntree.nodes["CY_OUT"].inputs[0]);
+
+        for name in ["CBAKE", "ABAKE"]:
+            if name not in ntree.nodes:
+                if name not in bpy.data.images:
+                    im=bpy.data.images.new(name, 64, 64);
+                    im.source='GENERATED';
+
+                bknode=ntree.nodes.new("ShaderNodeTexImage");
+                bknode.name=bknode.label=name;
+
+            bknode=ntree.nodes[name];
+            bknode.image=bpy.data.images[name];
+            bknode.image.generated_width=ob.lytools.res;
+            bknode.image.generated_height=ob.lytools.res;
+
+    for mat in ob.data.materials:
+
+        mat.use_nodes=1; ntree=mat.node_tree;
+
+        for name in ["CBAKE0", "ABAKE0"]:
+            if name not in ntree.nodes:
+                bknode=ntree.nodes.new("ShaderNodeTexImage");
+                bknode.name=bknode.label=name;
+
+            bknode=ntree.nodes[name];
+            bknode.image=bpy.data.images[name];
+            bknode.image.generated_width=ob.lytools.res;
+            bknode.image.generated_height=ob.lytools.res;
+
+#   ---     ---     ---     ---     ---
+
+    cmat=ob.data.materials[0]
+    cbake,abake=cmat.node_tree.nodes["CBAKE0"],cmat.node_tree.nodes["ABAKE0"];
+
+    for imtype in ["ALBEDO", "ORM", "NORMAL"]:
+
+        print(f">{imtype}");
+
+        for i in range(len(par.data.materials)):
+
+            mat=par.data.materials[i]; ntree=mat.node_tree;
+
+            cyout=ntree.nodes["SHDEMIT"];
+            imnode=ntree.nodes[imtype];
+
+            ntree.links.new(imnode.outputs[0], cyout.inputs[0]);
+            imnode.image.use_alpha=0;
+
+            if imtype=="NORMAL":
+                imnode.color_space='COLOR';
+
+        cmat.node_tree.nodes.active=cbake;
+        SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+        for i in range(len(par.data.materials)):
+            mat=par.data.materials[i]; ntree=mat.node_tree;
+            cyout=ntree.nodes["SHDEMIT"];
+
+            imnode=ntree.nodes[imtype]; imnode.image.use_alpha=1;
+            ntree.links.new(imnode.outputs[1], cyout.inputs[0]);
+
+        cmat.node_tree.nodes.active=abake;
+        impath=rtpath+f"{imtype.lower()}.png"; cbake.image.save_render(impath);
+        SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+        impath=rtpath+f"{imtype.lower()}.png";
+        cbake.image.source='FILE';
+        cbake.image.filepath=impath;
+
+        STALPHA(cbake.image, abake.image);
+        cbake.image.save_render(impath);
+
+        cbake.image.source='GENERATED';
+
+        if imtype=="NORMAL":
+            for i in range(len(par.data.materials)):
+                mat=par.data.materials[i]; ntree=mat.node_tree;
+                imnode=ntree.nodes[imtype]; imnode.color_space='NONE';
+
+#   ---     ---     ---     ---     ---
+# walkback 0
+
+    for i in range(len(par.data.materials)):
+        mat=par.data.materials[i]; ntree=mat.node_tree;
+        cbake=ntree.nodes[f"CBAKE"]; ntree.nodes.active=cbake;
+        abake=ntree.nodes[f"ABAKE"];
+
+        imnode=ntree.nodes["ALBEDO"]; imnode.image.use_alpha=1;
+        ntree.links.new(imnode.outputs[0], cyout.inputs[0]);
+
+#   ---     ---     ---     ---     ---
+# dupli and do castling
+
+    cl=bpy.context.scene.objects.link(ob.copy()).object;
+    cl.data=cl.data.copy();
+
+    ob.name, cl.name = cl.name, ob.name;
+    ob.data, cl.data = cl.data, ob.data;
+
+    ob.name=f"{cl.name}_ASIS"; ob.data.name=ob.name;
+
+    for _ in range(len(ob.data.materials)-1):
+        ob.active_material_index=0;
+        bpy.ops.object.material_slot_remove();
+
+    cmat=bpy.data.materials["ASIS_BAKE"].copy();
+    cmat.name=f"{par.name}_ASIS";
+    ob.data.materials[0]=cmat; ntree=cmat.node_tree;
+
+    for obj in bpy.context.selected_objects:
+        obj.select=0;
+
+    ob.select=1; par.select=1;
+    bpy.context.scene.objects.active=ob;
+
+#   ---     ---     ---     ---     ---
+# par ao and normal bakes
+
+    print(f">BASE NORMAL");
+
+    rend=bpy.context.scene.render;
+    rend.engine='BLENDER_RENDER';
+
+    imname="BAKETO_N0";
+
+    baketo=bpy.data.images[imname];
+    baketo.generated_width=res*ob.lytools.res_aa;
+    baketo.generated_height=res*ob.lytools.res_aa;
+
+#   ---     ---     ---     ---     ---
+# set image and bake normal
+
+    uv_area=bpy.data.screens["UV Editing"].areas[1];
+    uv_area.spaces.active.image=baketo;
+
+    for uvface in ob.data.uv_textures.active.data:
+        uvface.image=baketo;
+
+    rend.use_bake_to_vertex_color=0;
+    rend.bake_distance=1.0; rend.bake_bias=0.1;
+
+    rend.bake_type='NORMALS'; rend.bake_normal_space='TANGENT';
+
+    SHUT_OPS(bpy.ops.object.bake_image);
+    baketo.scale(res, res); baketo.save_render(rtpath+"hpnormal.png");
+
+#   ---     ---     ---     ---     ---
+# swap out and bake AO
+
+    print(f">BASE AO");
+    imname="BAKETO_AO";
+
+    baketo=bpy.data.images[imname];
+    baketo.generated_width=res*ob.lytools.res_aa;
+    baketo.generated_height=res*ob.lytools.res_aa;
+
+    rend.bake_type='AO';
+    rend.use_bake_normalize=1;
+
+    uv_area.spaces.active.image=baketo;
+
+    for uvface in ob.data.uv_textures.active.data:
+        uvface.image=baketo;
+
+    SHUT_OPS(bpy.ops.object.bake_image);
+    baketo.scale(res, res); baketo.save_render(rtpath+"hpao.png");
+
+#   ---     ---     ---     ---     ---
+# join ao and orm
+
+    par.select=0; rend.bake.use_selected_to_active=0;
+
+    print(f">COMBINED ORM");
+    rend.engine='CYCLES';
+
+    cbake,abake=ntree.nodes["CBAKE0"],ntree.nodes["ABAKE0"];
+    mix,out=ntree.nodes["MIXORM"],ntree.nodes["CYOUT"];
+
+    cbake.image.generated_width=ob.lytools.res;
+    cbake.image.generated_height=ob.lytools.res;
+    abake.image.generated_width=ob.lytools.res;
+    abake.image.generated_height=ob.lytools.res;
+
+    imnode=ntree.nodes["ORM"]; imnode.image.filepath=rtpath+"orm.png";
+
+    ntree.nodes.active=cbake; imnode.image.use_alpha=0;
+    ntree.links.new(mix.outputs[0], out.inputs[0]);
+
+    SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+    impath=rtpath+"ormtmp.png"; cbake.image.save_render(impath);
+
+    ntree.nodes.active=abake; imnode.image.use_alpha=1;
+    ntree.links.new(imnode.outputs[1], out.inputs[0]);
+
+    SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+    cbake.image.source='FILE';
+    cbake.image.filepath=impath;
+
+    STALPHA(cbake.image, abake.image);
+    cbake.image.save_render(rtpath+"orm.png");
+
+    cbake.image.source='GENERATED';
+
+#   ---     ---     ---     ---     ---
+# combine normals
+
+    print(f">COMBINED NORMAL");
+
+    mix=ntree.nodes["MIXNORMAL"];
+    imnode=ntree.nodes["NBAKE1"]; imnode.image.filepath=rtpath+"normal.png";
+
+    ntree.nodes.active=cbake; imnode.image.use_alpha=0;
+    ntree.links.new(mix.outputs[0], out.inputs[0]);
+
+    SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+    impath=rtpath+"normaltmp.png"; cbake.image.save_render(impath);
+
+    ntree.nodes.active=abake; imnode.image.use_alpha=1;
+    ntree.links.new(imnode.outputs[1], out.inputs[0]);
+
+    SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+    cbake.image.source='FILE';
+    cbake.image.filepath=impath;
+
+    STALPHA(cbake.image, abake.image);
+    cbake.image.save_render(rtpath+"normal.png");
+
+    cbake.image.source='GENERATED';
+
+#   ---     ---     ---     ---     ---
+# combine curvature
+
+    print(f">COMBINED CURV");
+
+    par.select=1; rend.bake.use_selected_to_active=1;
+
+    cbake=cmat.node_tree.nodes[f"CBAKE0"];
+    abake=cmat.node_tree.nodes[f"ABAKE0"]; cmat.node_tree.nodes.active=cbake;
+
+    for poly in par.data.polygons:
+        poly.use_smooth=False;
+
+    for poly in ob.data.polygons:
+        poly.use_smooth=False;
+
+    for i in range(len(par.data.materials)):
+        mat=par.data.materials[i]; ntree=mat.node_tree;
+
+        imnode=ntree.nodes["CURV"]; imnode.image.use_alpha=0;
+        scurvy=ntree.nodes["SCURVY"];
+        cyout=ntree.nodes["SHDEMIT"];
+
+        ntree.links.new(imnode.outputs[0], scurvy.inputs[2]);
+        ntree.links.new(scurvy.outputs[0], cyout.inputs[0]);
+
+    SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+    impath=rtpath+"curvtmp.png"; cbake.image.save_render(impath);
+
+    for i in range(len(par.data.materials)):
+        mat=par.data.materials[i]; ntree=mat.node_tree;
+
+        imnode=ntree.nodes["CURV"]; imnode.image.use_alpha=1;
+        cyout=ntree.nodes["SHDEMIT"];
+
+        ntree.links.new(imnode.outputs[1], cyout.inputs[0]);
+
+    cmat.node_tree.nodes.active=abake;
+    SHUT_OPS(bpy.ops.object.bake, [], {'type':'EMIT'});
+
+    cbake.image.source='FILE';
+    cbake.image.filepath=impath;
+
+    STALPHA(cbake.image, abake.image);
+    cbake.image.save_render(rtpath+"curv.png");
+
+    cbake.image.source='GENERATED';
+    par.select=0;
+
+#   ---     ---     ---     ---     ---
+
+    print(">CLEANUP");
+
+    os.system(f"del {rtpath}hpao.png");
+    os.system(f"del {rtpath}hpnormal.png");
+    os.system(f"del {rtpath}normaltmp.png");
+    os.system(f"del {rtpath}curvtmp.png");
+    os.system(f"del {rtpath}ormtmp.png");
+
+    bpy.data.meshes.remove(ob.data);
+    bpy.data.meshes.remove(par.data);
+
+    print("\nDONE!");
+
 #   ---     ---     ---     ---     ---
 
 def STALPHA(col, alpha):
@@ -406,7 +762,7 @@ def BKPAR():
     baketo.generated_height=res*ob.lytools.res_aa;
 
     rend.bake_type='AO';
-    rend.use_bake_normalize=1; rend.bake_bias=2.0;
+    rend.use_bake_normalize=1;
 
     uv_area.spaces.active.image=baketo;
 
@@ -602,7 +958,7 @@ def CLNUP():
     for image in images: bpy.data.images.remove(image);
 
     for material in bpy.data.materials:
-        if material.name!="COLORMASKING":
+        if material.name!="COLORMASKING" and material.name!="ASIS_BAKE":
             bpy.data.materials.remove(material);
 
     for mesh in bpy.data.meshes: bpy.data.meshes.remove(mesh);
@@ -931,6 +1287,18 @@ class LYT_BKUNI(Operator):
     def execute(self, context):
         BKUNI(); return {'FINISHED'};
 
+class LYT_BKASIS(Operator):
+
+    bl_idname      = "lytbkr.bkasis";
+    bl_label       = "Bakes from high poly object";
+
+    bl_description = "Bake unified material from high poly object";
+
+#   ---     ---     ---     ---     ---
+
+    def execute(self, context):
+        BKASIS(); return {'FINISHED'};
+
 class LYT_CLNUP(Operator):
 
     bl_idname      = "lytbkr.clnup";
@@ -984,6 +1352,9 @@ class LYT_mixingPanel(Panel):
                 row=layout.row(); row.prop(context.object.lytools, "res_aa");
                 row.operator("lytbkr.bkpar", text="BAKE HI-POLY", icon="MOD_SUBSURF");
 
+                layout.separator(); row=layout.row();
+                row.operator("lytbkr.bkasis", text="BAKE ASIS", icon="RENDER_STILL");
+
             layout.separator(); row=layout.row();
             row.operator("lytbkr.bkmatid", text="BAKE MATERIAL IDS", icon="COLOR");
 
@@ -1034,6 +1405,7 @@ def register():
     register_class(LYT_BKMIX);
     register_class(LYT_BKPAR);
     register_class(LYT_BKUNI);
+    register_class(LYT_BKASIS);
     register_class(LYT_CLNUP);
     Object.lytools=PointerProperty(type=LYT_MixObjSettings);
     Material.lytools=PointerProperty(type=LYT_MixMatSettings);
@@ -1042,6 +1414,7 @@ def unregister():
     del Object.lytools;
     del Material.lytools;
     unregister_class(LYT_CLNUP);
+    unregister_class(LYT_BKASIS);
     unregister_class(LYT_BKUNI);
     unregister_class(LYT_BKPAR);
     unregister_class(LYT_BKMIX);

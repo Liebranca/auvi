@@ -33,14 +33,13 @@ def MATGNSIS():
     mat.use_nodes=1; lyt=mat.lytools;
 
     ntree=mat.node_tree; nodes=ntree.nodes; nodes.clear();
-    tc=nodes.new('ShaderNodeTexCoord'); tc.location=[0,0];
+    tc=nodes.new('ShaderNodeTexCoord'); tc.location=[-250,0];
     tc.name=tc.label="TEXCOORD";
 
-    vm=nodes.new('ShaderNodeVectorMath'); vm.location=[250, 0];
-    vm.name=vm.label="VECMATH"; vm.operation='MULTIPLY';
+    vm=nodes.new('ShaderNodeMapping'); vm.location=[0, 0];
+    vm.name=vm.label="MAPPING";
 
     ntree.links.new(tc.outputs[2], vm.inputs[0]);
-    vm.inputs[1].default_value=[1,1,1];
 
 #   ---     ---     ---     ---     ---
 
@@ -85,7 +84,7 @@ def MATGNSIS():
 
 #   ---     ---     ---     ---     ---
 
-NDCHECK=["TEXCOORD", "SHADER", "OUT", "VECMATH", "FRESNEL"] + [key for key in IMTYPES];
+NDCHECK=["TEXCOORD", "SHADER", "OUT", "MAPPING", "FRESNEL"] + [key for key in IMTYPES];
 
 def VALIDATE(mat):
 
@@ -132,7 +131,7 @@ def UPIMPATH(self, context):
         node.image.filepath=lyt.mat_f1+imname.lower()+'.png';
 
     name=(lyt.mat_f1.split("\\")[-1])[:-1];
-    mat.name=bpy.context.object.name=bpy.context.object.data.name=name;
+    #mat.name=bpy.context.object.name=bpy.context.object.data.name=name;
     bpy.ops.file.make_paths_relative();
 
 #   ---     ---     ---     ---     ---
@@ -162,7 +161,7 @@ def UPPROJ(self, context):
     lyt=mat.lytools; ntree=mat.node_tree;
 
     im=ntree.nodes["ALBEDO"];
-    tc, vm = ntree.nodes["TEXCOORD"], ntree.nodes["VECMATH"];
+    tc, vm = ntree.nodes["TEXCOORD"], ntree.nodes["MAPPING"];
 
     if lyt.mat_proj == 'FLAT' and im.projection == 'BOX':
         ntree.links.new(tc.outputs[2], vm.inputs[0]);
@@ -174,7 +173,9 @@ def UPPROJ(self, context):
         im.projection=lyt.mat_proj;
         im.projection_blend=lyt.mat_blend;
 
-    vm.inputs[1].default_value[0:2] = lyt.mat_scale[:];
+    vm.translation[:]=lyt.mat_loc[:];
+    vm.scale[:]=lyt.mat_scale[:];
+    vm.rotation[:]=lyt.mat_rot[:];
 
 #   ---     ---     ---     ---     ---
 
@@ -217,8 +218,32 @@ class LYT_MaterialSettings(PropertyGroup):
         description = "Scales UV/generated texture coordinates",
         subtype     = 'NONE',
 
-        size        = 2,
-        default     = [1.0,1.0],
+        size        = 3,
+        default     = [1.0,1.0,1.0],
+        update      = UPPROJ
+
+    );
+
+    mat_loc=FloatVectorProperty (
+
+        name        = "Location",
+        description = "Offsets UV/generated texture coordinates",
+        subtype     = 'TRANSLATION',
+
+        size        = 3,
+        default     = [0.0,0.0,0.0],
+        update      = UPPROJ
+
+    );
+
+    mat_rot=FloatVectorProperty (
+
+        name        = "Rotation",
+        description = "Rotates UV/generated texture coordinates",
+        subtype     = 'EULER',
+
+        size        = 3,
+        default     = [0.0,0.0,0.0],
         update      = UPPROJ
 
     );
@@ -320,6 +345,8 @@ class LYT_materialPanel(Panel):
                     row=layout.row(); row.prop(lyt, "mat_blend");
 
                 row=layout.row(); row.prop(lyt, "mat_scale");
+                row=layout.row(); row.prop(lyt, "mat_loc");
+                row=layout.row(); row.prop(lyt, "mat_rot");
 
                 layout.separator();
 
