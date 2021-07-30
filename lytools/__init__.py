@@ -7,7 +7,7 @@ for sub in s[::-1]:
     
     i+=1;
 
-root="\\".join(s[0:-i]);
+root="\\".join(s[0:-(i+1)]);
 if root not in sys.path:
     sys.path.append(root);
 
@@ -23,9 +23,17 @@ def wrap_cfunc(lib, funcname, restype, argtypes):
 
     return func
 
-os.chdir(root);
+import struct; plat=struct.calcsize("P") * 8
+plat='x64' if plat==64 else 'Win32'
 
-from ctypes import WinDLL; CSIDE = WinDLL(root + "\\blkmgk.dll");
+# pulla dir switcharoo so we can find dll
+pastcwd=os.getcwd(); os.chdir(f"{root}\\bin\\{plat}");
+
+from ctypes import WinDLL;
+CSIDE=WinDLL(f"{root}\\bin\\{plat}\\blkmgk.dll");
+
+# eh, sucks not to have -rpath
+os.chdir(pastcwd);
 
 DLBLKMGK  = wrap_cfunc(CSIDE, "DLBLKMGK", None,       [                          ]);
 _NTBLKMGK = wrap_cfunc(CSIDE, "NTBLKMGK", None,       [star(charstar)            ]);
@@ -41,8 +49,7 @@ def INJOJ(i                  ): _INJOJ(i);
 
 def NTBLKMGK(pecwd):
 
-    kvrdir = "\\".join(root.split("\\")[:-2]);
-    kvrdir = kvrdir+"\\KVR\\trashcan\\log\\";
+    kvrdir = root;
 
     pth_l  = [cstr(kvrdir), cstr(root+"\\"), cstr(""), cstr(pecwd)];
     arr    = (charstar * len(pth_l))(); arr[:]=pth_l;

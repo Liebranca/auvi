@@ -348,7 +348,6 @@ class LYT_LIBGET(Operator):
                 f"Data-block {context.scene.lymport.f3} already linked!"
             );
 
-        TEXPACK(); TEXUNPACK();
         return {'FINISHED'};
 
 #   ---     ---     ---     ---     ---
