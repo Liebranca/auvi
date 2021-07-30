@@ -163,7 +163,7 @@ def BKASIS():
     rend.engine='CYCLES';
 
     res=ob.lytools.res;
-    rend.bake.margin=int(res/32);
+    rend.bake.margin=2; #int(res/32);
 
     rend.image_settings.file_format='PNG';
     rend.image_settings.color_mode='RGBA';

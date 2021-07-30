@@ -1,4 +1,4 @@
-import bpy, os;
+import bpy, os, struct;
 
 from bpy.types import Scene, Material, Image, PropertyGroup, Panel, Operator;
 from bpy.utils import register_class, unregister_class;

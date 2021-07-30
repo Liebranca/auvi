@@ -3,3 +3,5 @@ __pycache__/
 *.stackdump
 *.exr
 *.blend1
+*.png
+*.dll

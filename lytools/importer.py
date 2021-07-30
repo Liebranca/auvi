@@ -1,7 +1,9 @@
-import bpy, os;
+import bpy, os, struct;
 
 from bpy.types import Panel, Operator, PropertyGroup, Scene;
 from bpy.utils import register_class, unregister_class;
+
+from . import NTBLKMGK, DLBLKMGK, UTJOJ, INJOJ;
 
 #   ---     ---     ---     ---     ---
 
@@ -20,6 +22,15 @@ from bpy.props import (
 #   ---     ---     ---     ---     ---
 
 DROOT="\\".join(__file__.split("\\")[:-2])+'\\data';
+
+COMP_LEVELS={
+
+    "a":4,                                  # albedo
+    "n":1,                                  # normal
+    "c":2,                                  # curvature
+    "o":1                                   # orm
+
+};
 
 DTYPES=([
 
@@ -110,6 +121,122 @@ def SVIMP(block, cat, src, lnk=0):
 
     bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath);
     return notif;
+
+#   ---     ---     ---     ---     ---
+
+def TEXPACK():
+
+    if "JOJ_EXPORT_DUMMY" not in bpy.data.images:
+        im=bpy.data.images.new("JOJ_EXPORT_DUMMY", 64, 64);
+        im.source='FILE'; im.use_alpha=1;
+
+    im=bpy.data.images["JOJ_EXPORT_DUMMY"];
+
+    imp=bpy.context.scene.lymport;
+    base=imp.f0+"\\textures";
+    materials=list(os.walk(base))[0][1];
+
+    NTBLKMGK(imp.f0);
+
+    for mat in materials:
+        textures=list(os.walk(base+'\\'+mat))[0][2]
+        textures=[tex for tex in textures if tex.endswith(".png")];
+
+        for tex in textures:
+            im.filepath=f"{base}\\{mat}\\{tex}";
+
+            i=0 if   mat == materials[0]   \
+                and  tex == textures [0]   \
+                else 1;
+
+            if i: i=0x444f4e45 if   mat == materials[-1] \
+                               and  tex == textures [-1] \
+                               else 1;
+
+            buff=bytearray(); dim=(im.size[0]**2)*4*4;
+            buff.extend(struct.pack('%sf'%len(im.pixels), *im.pixels)[0:dim]);
+            with open(imp.f0+"\\PIXDUMP.hx", 'wb') as file:
+                sign=bytearray(16);
+                for x in range(16): sign[x]=36;
+
+                file.write(sign);
+                file.write(buff);
+
+            matid, texid=tex.split("_");
+
+            level=COMP_LEVELS[texid[0]];
+
+            texid=matid+'_'+texid[0];
+
+            UTJOJ(i, im.size[0], level, texid);
+
+    DLBLKMGK();
+
+def TEXUNPACK():
+
+    imp=bpy.context.scene.lymport;
+    base=imp.f0+"\\textures";
+    NTBLKMGK(imp.f0);
+
+    rend=bpy.context.scene.render;
+    rend.image_settings.file_format='PNG';
+    rend.image_settings.color_mode='RGBA';
+
+    try:
+        with open(imp.f0+"\\PIXDUMP.hx", 'wb') as file:
+            sign=bytearray(16);
+            for x in range(16): sign[x]=36;
+            file.write(sign);
+
+        count=0;
+        with open(imp.f0+"\\MATE.joj", 'rb') as file:
+            file.seek(24); x=file.read(4);
+            count=struct.unpack("<i", x)[0];
+
+        for i in range(count):
+
+            INJOJ(i);
+            with open(imp.f0+"\\PIXDUMP.hx", 'rb') as file:
+
+                buff=file.read(20);
+                name=(struct.unpack("%ss"%int(len(buff)), buff))[0].decode('utf-8');
+
+                buff=file.read(4);
+                dim=struct.unpack("<i", buff)[0];
+
+                file.read(4); # discard fracl
+
+                buff=file.read();
+                pixels=struct.unpack("<%sf"%int(len(buff)/4), buff);
+
+                if name not in bpy.data.images:
+                    im=bpy.data.images.new(name, alpha=1, height=dim, width=dim);
+
+                im=bpy.data.images[name];
+                im.source='GENERATED'; im.use_alpha=1;
+                im.alpha_mode = 'STRAIGHT';
+
+                name, imtype=name.split('_'); imtype=imtype[0];
+                imtype={'o':"orm", 'a':"albedo", 'n':"normal", 'c':"curv"}[imtype];
+
+                fpath=imp.f0+f"\\textures\\{name}";
+                if not os.path.exists(fpath):
+                    os.makedirs(fpath);
+
+                fpath=f"{fpath}\\{name}_{imtype}.png";
+
+                im.filepath_raw = fpath;
+                im.file_format = 'PNG';
+
+                im.save(); im.source='FILE'; im.scale(dim, dim);
+
+                print(name, dim, len(pixels));
+
+                im.pixels[:]=pixels[0:dim*dim*4]; im.save();
+
+    finally:
+        INJOJ(0x444f4e45);
+        DLBLKMGK();
 
 #   ---     ---     ---     ---     ---
 
@@ -221,6 +348,7 @@ class LYT_LIBGET(Operator):
                 f"Data-block {context.scene.lymport.f3} already linked!"
             );
 
+        TEXPACK(); TEXUNPACK();
         return {'FINISHED'};
 
 #   ---     ---     ---     ---     ---
