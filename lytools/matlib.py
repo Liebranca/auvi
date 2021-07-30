@@ -23,7 +23,7 @@ IMTYPES={
 
     "ALBEDO":[0, 1],
     "ORM"   :[2,3],
-    "CURV"  :[4],
+    "CURV"  :[],
     "NORMAL":[5,6]
 
 };
@@ -35,6 +35,20 @@ def MATGNSIS():
     ntree=mat.node_tree; nodes=ntree.nodes; nodes.clear();
     tc=nodes.new('ShaderNodeTexCoord'); tc.location=[-250,0];
     tc.name=tc.label="TEXCOORD";
+
+    curv_contr0=nodes.new('ShaderNodeVectorMath'); curv_contr0.location=[750,250];
+    curv_contr0.name=curv_contr0.label="CURV_CONTR0";
+
+    curv_contr0.operation='MULTIPLY';
+    curv_contr0.inputs[1].default_value[:]=[0.4, 0.5, 1.0];
+
+    curv_contr1=nodes.new('ShaderNodeVectorMath'); curv_contr1.location=[935,250];
+    curv_contr1.name=curv_contr1.label="CURV_CONTR1";
+
+    curv_contr1.operation='ADD';
+    curv_contr1.inputs[1].default_value[:]=[0.2, 0.1, 0.5];
+
+    ntree.links.new(curv_contr0.outputs[0], curv_contr1.inputs[0]);
 
     vm=nodes.new('ShaderNodeMapping'); vm.location=[0, 0];
     vm.name=vm.label="MAPPING";
@@ -54,7 +68,7 @@ def MATGNSIS():
 
     matname=lyt.mat_f1.split("\\")[-1]; y=600;
     mth=nodes.new('ShaderNodeMath'); mth.location=[500, -525];
-    mth.name=mth.label="FRESNEL"; mth.inputs[0].default_value=1;
+    mth.name=mth.label="FRESNEL"; mth.inputs[0].default_value=1.0;
     mth.operation='SUBTRACT';
 
     for name in IMTYPES:
@@ -62,6 +76,7 @@ def MATGNSIS():
         im.name=im.label=name; y-=275;
 
         ntree.links.new(vm.outputs[0], im.inputs[0]);
+
         for i in range(len(IMTYPES[name])):
             ntree.links.new(im.outputs[i], shd.inputs[IMTYPES[name][i]]);
 
@@ -74,11 +89,13 @@ def MATGNSIS():
         if name=="NORMAL": im.color_space='NONE';
 
         if name=="CURV":
+            ntree.links.new(im.outputs[0], curv_contr0.inputs[0]);
             ntree.links.new(im.outputs[1], mth.inputs[1]);
 
     #name=(lyt.mat_f1.split("\\")[-1])[:-1];
     #mat.name=bpy.context.object.name=bpy.context.object.data.name=name;
 
+    ntree.links.new(curv_contr1.outputs[0], shd.inputs [4]);
     ntree.links.new(shd.outputs[0], out.inputs[0]);
     ntree.links.new(shd.outputs[1], out.inputs[1]);
 
@@ -142,6 +159,16 @@ def UPMAT(self, context):
 
     nd=ntree.nodes["SHADER"];
     nd.inputs[7].default_value=lyt.mat_fresnel;
+
+    curv_contr0=ntree.nodes["CURV_CONTR0"];
+    curv_contr1=ntree.nodes["CURV_CONTR1"];
+
+    curv_contr0.inputs[1].default_value[0]=lyt.mat_edgedarkm;
+    curv_contr1.inputs[1].default_value[0]=lyt.mat_edgedarkb;
+    curv_contr0.inputs[1].default_value[1]=lyt.mat_edgebrightm;
+    curv_contr1.inputs[1].default_value[1]=lyt.mat_edgebrightb;
+    curv_contr0.inputs[1].default_value[2]=lyt.mat_edgeoverm;
+    curv_contr1.inputs[1].default_value[2]=lyt.mat_edgeoverb;
 
 def IMFRES(self, context):
     mat=context.object.active_material;
@@ -284,6 +311,84 @@ class LYT_MaterialSettings(PropertyGroup):
 
     );
 
+    mat_edgedarkm=FloatProperty (
+
+        name        = "Darkness mult",
+        description = "Boosts the darknening of edges and self-occlussion",
+
+        default     = 0.2,
+        min         = 0.0,
+        max         = 1.0,
+
+        update      = UPMAT
+
+    );
+
+    mat_edgedarkb=FloatProperty (
+
+        name        = "Darkness base",
+        description = "Boosts the darknening of crevices and self-occlussion",
+
+        default     = 0.4,
+        min         = 0.0,
+        max         = 1.0,
+
+        update      = UPMAT
+
+    );
+
+    mat_edgebrightm=FloatProperty (
+
+        name        = "Brightness mult",
+        description = "Boosts brightness at edges",
+
+        default     = 0.5,
+        min         = 0.0,
+        max         = 1.0,
+
+        update      = UPMAT
+
+    );
+
+    mat_edgebrightb=FloatProperty (
+
+        name        = "Brightness base",
+        description = "Boosts brightness at edges",
+
+        default     = 0.1,
+        min         = 0.0,
+        max         = 1.0,
+
+        update      = UPMAT
+
+    );
+
+    mat_edgeoverm=FloatProperty (
+
+        name        = "Lightness mult",
+        description = "Affects light ambient factor",
+
+        default     = 1.0,
+        min         = 0.0,
+        max         = 1.0,
+
+        update      = UPMAT
+
+    );
+
+    mat_edgeoverb=FloatProperty (
+
+        name        = "Lightness base",
+        description = "Affects light ambient factor",
+
+        default     = 0.5,
+        min         = 0.0,
+        max         = 1.0,
+
+        update      = UPMAT
+
+    );
+
 #   ---     ---     ---     ---     ---
 
 class LYT_INITMAT(Operator):
@@ -352,6 +457,17 @@ class LYT_materialPanel(Panel):
 
                 row=layout.row(); row.prop(lyt, "mat_imfres");
                 if not lyt.mat_imfres: row.prop(lyt, "mat_fresnel");
+
+                layout.separator();
+                row=layout.row(); row.label("Edges:");
+
+                row=layout.row(); row.prop(lyt, "mat_edgedarkm");
+                row=layout.row(); row.prop(lyt, "mat_edgedarkb");
+                row=layout.row(); row.prop(lyt, "mat_edgebrightm");
+                row=layout.row(); row.prop(lyt, "mat_edgebrightb");
+                row=layout.row(); row.prop(lyt, "mat_edgeoverm");
+                row=layout.row(); row.prop(lyt, "mat_edgeoverb");
+
 
 #   ---     ---     ---     ---     ---
 

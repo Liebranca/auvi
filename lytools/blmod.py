@@ -20,9 +20,10 @@ def reg(n):
 
     if not hasattr(bpy.types.Scene, "lymport"):
         from .importer import register as reg_lymport;
-        reg_lymport();
+        from .packaging import register as reg_packaging;
+        reg_lymport(); reg_packaging();
 
-    if n in ["matlib", "matmk", "matmix", "mapping"]:
+    if n in ["matlib", "matmk", "matmix", "mapping", "packaging"]:
         module=importlib.import_module('.'+n, 'lytools');
         return module.register, module.unregister;
 

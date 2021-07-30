@@ -344,9 +344,9 @@ class LYT_SceneSettings(PropertyGroup):
         name        = "Base Fresnel",
         description = "Base fresnel value",
 
-        default     = 0.075,
-        min         = 0.075,
-        max         = 1.0
+        default     = 0.050,
+        min         = 0.050,
+        max         = 1.000
 
     );
 
