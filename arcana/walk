@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+# ---   *   ---   *   ---
+# WALK
+# Whoa, whoa. It's just ls and grep?
+#
+# LIBRE SOFTWARE
+# Licensed under GNU GPL3
+# be a bro and inherit
+#
+# CONTRIBUTORS
+# lyeb,
+# ---   *   ---   *   ---
+
+# deps
+  use strict;
+  use warnings;
+
+# ---   *   ---   *   ---
+
+my $path;if(@ARGV) {
+
+  $path=shift @ARGV;
+
+} else {
+
+  $path=glob('.');
+
+};$path=~ s/://sg;
+
+print STDERR "$path\n";
+
+if(!length $path || !(-e $path)) {print "\n";exit 1;};
+
+my $w=`ls $path`;
+if(@ARGV) {
+  my $pattern=shift;
+  $w=~ s/${pattern}\n//sg;
+
+};
+
+print "$w";
+
+exit 0;
+
+# ---   *   ---   *   ---
