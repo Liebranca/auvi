@@ -54,15 +54,13 @@ def cmd(proc:str,args:list=[]):
 # i'd overwrite os.walk *just* out of spite
 # but that'd be too much
 
-def walk(path:str,exclude:list=[]):
+def walk(path:str,lookfor:str=''):
 
-  exclude='"'+(''.join(exclude))+'"';
   w:str=cmd(
     paths['arcana']+'/walk',
-    [path,exclude]
+    [path,lookfor]
 
   );w=w.split("\n");
-  if(not len(w[-1])):w=w[0:-2];
 
   return w;
 

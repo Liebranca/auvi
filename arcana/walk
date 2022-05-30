@@ -15,30 +15,106 @@
   use strict;
   use warnings;
 
+  use lib $ENV{'ARPATH'}.'/lib/';
+  use peso::node;
+
 # ---   *   ---   *   ---
 
-my $path;if(@ARGV) {
+my $path=glob('.');
 
+if(@ARGV) {
   $path=shift @ARGV;
-
-} else {
-
-  $path=glob('.');
 
 };$path=~ s/://sg;
 
-print STDERR "$path\n";
+# ---   *   ---   *   ---
 
-if(!length $path || !(-e $path)) {print "\n";exit 1;};
+my $lookfor='';
 
-my $w=`ls $path`;
 if(@ARGV) {
-  my $pattern=shift;
-  $w=~ s/${pattern}\n//sg;
+  $lookfor=shift @ARGV;
 
 };
 
-print "$w";
+# ---   *   ---   *   ---
+
+if(
+
+   !length $path
+|| !defined $path
+
+|| !(-e $path)
+
+) {print "\n";exit 1;};
+
+# ---   *   ---   *   ---
+
+my $w=`ls -FBR1 $path`;
+
+my $tree={};
+my $self=$tree;
+
+my @ar=split "\n",$w;
+
+while(@ar) {
+
+  my $line=shift @ar;
+  if(!defined $line || !length $line) {next;}
+
+# ---   *   ---   *   ---
+
+  elsif($line=~ s/:$//) {
+
+    my @ances=split '/',$line;
+    my $name=pop @ances;
+
+    my $anchor=$tree;
+
+# ---   *   ---   *   ---
+
+    for my $key(@ances) {
+
+      if(
+
+         !exists $anchor->{$key}
+      || !lang::is_hashref($anchor->{$key})) {
+
+        $anchor->{$key}={};
+
+      };$anchor=$anchor->{$key};
+
+    };$self=$anchor->{$name}={};
+
+# ---   *   ---   *   ---
+
+  } else {
+
+    $line=~ s/\///sg;
+    $self->{$line}='file';
+
+  };
+
+# ---   *   ---   *   ---
+
+};
+
+$tree=peso::node::hashtree($tree);
+my @branches=$tree->branches_with('^'.$lookfor.'$');
+
+for my $branch(@branches) {
+  print $branch->value.' ';
+
+  my @children=$branch->branches_in('^'.$lookfor.'$');
+  for my $child(@children) {
+    for my $leaf(@{$child->leaves}) {
+      print $leaf->value.' ';
+
+    };
+  };
+
+  print "\n";
+
+};
 
 exit 0;
 

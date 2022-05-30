@@ -82,48 +82,62 @@ def sel_bake_node(name):
 
 #   ---     ---     ---     ---     ---
 
+BAKE_FOLDERS:list=None;
+PREV_BAKE_FOLDERS:list=None;
+BAKE_SUBFOLDERS:list=None;
+
 def get_bake_folder(self, context):
 
-#  if not len(DROOT):
-#    return [('','','')];
+  if not len(DROOT):
+    return [('','','')];
 
-  w=walk(DROOT);
+  global BAKE_FOLDERS;
+  if not BAKE_FOLDERS:
 
-  print(w);
+    w:list=walk(DROOT,'textures');
+    filt:list=[];
 
-  shit=[
+    for s in w:
+      print(s);
+      ar:list=s.split(' ');
+      filt.append(ar[0]);
 
-    tuple([s,s.capitalize(),''])
-    for s in w
+    BAKE_FOLDERS=[
 
-  ];
+      tuple([s,s.capitalize(),''])
+      for s in filt
 
-  print(shit);
+    ];
 
-  return [
-
-    tuple([s,s.capitalize(),''])
-    for s in w
-
-  ];
+  return BAKE_FOLDERS;
 
 def get_bake_subfolder(self, context):
 
-  if(not len(context.scene.lytools.bake_folder)):
+  if not len(DROOT):
     return [('','','')];
 
-  w=walk(
-    context.scene.lytools.bake_folder,
-    '([^t]|t[^e]|te[^x]|tex[^t]|text[^u])'
+  global BAKE_FOLDERS;
+  global PREV_BAKE_FOLDERS;
+  global BAKE_SUBFOLDERS;
 
-  );
+  if PREV_BAKE_FOLDERS!=BAKE_FOLDERS \
+  or not BAKE_SUBFOLDERS:
 
-  return [
+    w:list=walk(DROOT,'textures');
+    filt:list=[];
 
-    tuple([s,s.capitalize(),''])
-    for s in w
+    for s in w:
+      ar:list=s.split(' ');
+      filt.extend(ar[1:]);
 
-  ];
+    BAKE_SUBFOLDERS=[
+
+      tuple([s,s.capitalize(),''])
+      for s in filt
+
+    ];PREV_BAKE_FOLDERS=BAKE_FOLDERS;
+
+  return BAKE_SUBFOLDERS;
 
 # ---   *   ---   *   ---
 
