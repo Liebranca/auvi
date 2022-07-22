@@ -14,6 +14,8 @@
 import bmesh,bpy,struct;
 from mathutils import Matrix,Vector;
 
+import numpy as np;
+
 #   ---     ---     ---     ---     ---
 
 def ftb(num):
@@ -33,13 +35,73 @@ INTERPOLATION_MODE='CONSTANT';
 
 # ---   *   ---   *   ---
 
-def FLTOFRAC(x):
-  x=max(-FRAC_MAX,min(x,FRAC_MAX-FRAC_STEP));
-  return int(round(x*FRAC_SCALE)+FRAC_SHIFT);
+USE_FRAC=0;
 
-def FRACTOFL(x):
-  if(x==(FRAC_SHIFT*2)-1): x = FRAC_SHIFT*2;
+def fltofrac(x):
+
+  x=max(
+
+    -FRAC_MAX,
+    min(x,FRAC_MAX-FRAC_STEP)
+
+  );
+
+  return int(round(
+    x*FRAC_SCALE)+FRAC_SHIFT
+
+  );
+
+# ---   *   ---   *   ---
+
+def fractofl(x):
+  if(x==(FRAC_SHIFT*2)-1):
+    x = FRAC_SHIFT*2;
+
   return (x-FRAC_SHIFT)*FRAC_STEP;
+
+# ---   *   ---   *   ---
+
+def fracvert(a,b):
+  vi=a.index;
+
+  l=[fractofl(fltofrac(ax)) for ax in a.co];
+  b.data[vi].co[:]=l[:];
+
+fracmesh=np.vectorize(fracvert);
+
+def vt_frac(src,dst):
+  a=np.array(src[:]);
+  fracmesh(a,dst);
+
+# ---   *   ---   *   ---
+
+def flat_transfer(a,b):
+  vi=a.index;
+  b.data[vi].co[:]=[ax for ax in a.co];
+
+vflat_transfer=np.vectorize(flat_transfer);
+
+def vt_common(src,dst):
+
+  a=np.array(src[:]);
+  vflat_transfer(a,dst);
+
+# ---   *   ---   *   ---
+
+VERT_TRANSFER=vt_common;
+
+def set_use_frac(x):
+
+  global USE_FRAC;
+  global VERT_TRANSFER;
+
+  USE_FRAC=x;
+
+  if(USE_FRAC):
+    VERT_TRANSFER=vt_frac;
+
+  else:
+    VERT_TRANSFER=vt_common;
 
 # ---   *   ---   *   ---
 
@@ -114,6 +176,7 @@ def scene_or_depsgraph():
   return out;
 
 # ---   *   ---   *   ---
+# LEGACY
 
 def bake_deforms(ob,me):
 
@@ -172,14 +235,7 @@ def to_mesh(ob):
     );
 
     out[0]=ob.evaluated_get(depsgraph);
-
     out[1]=bpy.data.meshes.new_from_object(out[0]);
-
-#    out[1]=out[0].to_mesh(
-#      preserve_all_data_layers=1,
-#      depsgraph=depsgraph
-#
-#    );
 
   return out;
 
@@ -285,48 +341,30 @@ def shapebake(ob,frames):
   scene.frame_set(0);
   for n in range(frames):
 
-#    select_all(original_object,merge);
-#    bpy.ops.object.duplicate();
-#
-# ---   *   ---   *   ---
-#
-#    for dupli in bpy.context.selected_objects:
-#
-#      nob,nme=to_mesh(dupli);
-#
-#      duplis.append(dupli.data);
-#      duplis.append(nme);
-#
-#      dupli.data=nme;
-#
-# ---   *   ---   *   ---
-#
-#    if(merge):
-#      bpy.ops.object.join();
-#
-#    ob=bpy.context.object;
-#    ob.data.name=ob.name;
+    select_all(original_object,merge);
+    bpy.ops.object.duplicate();
 
-    me=ob.data;
+# ---   *   ---   *   ---
+
+    for dupli in bpy.context.selected_objects:
+
+      nob,nme=to_mesh(dupli);
+
+      duplis.append(dupli.data);
+      duplis.append(nme);
+
+      dupli.data=nme;
+
+# ---   *   ---   *   ---
+
+    if(merge):
+      bpy.ops.object.join();
+
+    merged=bpy.context.object;
+    ans=merged.data;
 
     sk=tgt.shape_key_add(name='frame_'+str(n));
-    bake_deforms(ob,ans);
-
-# ---   *   ---   *   ---
-
-    for vert in ans.vertices:
-
-      vi=vert.index;
-
-      sk.data[vi].co=[
-
-# TODO: make this bit optional ;>
-#        FRACTOFL(FLTOFRAC(ax))
-
-        ax
-        for ax in vert.co
-
-      ];
+    VERT_TRANSFER(ans.vertices,sk);
 
 # ---   *   ---   *   ---
 
@@ -449,7 +487,6 @@ def shapebake(ob,frames):
 
 # ---   *   ---   *   ---
 
-  bpy.data.meshes.remove(ans);
   scene.frame_set(0);
 
   bpy.data.actions[tgt.name+"Action"].name=(
