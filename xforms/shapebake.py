@@ -61,6 +61,25 @@ def select(ob):
   else:
     ob.select_set(True);
 
+# ---   *   ---   *   ---
+# select objects in bake list
+
+def select_all(ob,merge):
+
+  bpy.ops.object.select_all(
+    action='DESELECT'
+
+  );
+
+  select(ob);
+
+  for piece in merge:
+    select(piece);
+
+  set_ob_active(ob);
+
+# ---   *   ---   *   ---
+
 def set_ob_active(ob):
 
   if(OLD_VERSION):
@@ -68,6 +87,8 @@ def set_ob_active(ob):
 
   else:
     bpy.context.view_layer.objects.active=ob;
+
+# ---   *   ---   *   ---
 
 def link_object(ob):
 
@@ -109,6 +130,61 @@ def bake_deforms(ob,me):
 
 # ---   *   ---   *   ---
 
+def apply_keys(ob):
+
+  ob.shape_key_add(
+    name='Mix',
+    from_mix=True
+
+  );
+
+  for k in ob.data.shape_keys.key_blocks:
+
+    if(k.name == 'Mix'):
+      continue;
+
+    ob.shape_key_remove(k);
+
+  ob.shape_key_remove(
+    ob.data.shape_keys.key_blocks['Mix']
+
+  );
+
+# ---   *   ---   *   ---
+
+def to_mesh(ob):
+
+  apply_keys(ob);
+  out=[ob,ob.data];
+
+  if(OLD_VERSION):
+
+    out[1]=ob.to_mesh(
+      scene,1,'RENDER'
+
+    );
+
+  else:
+
+    depsgraph=(
+      bpy.context.evaluated_depsgraph_get()
+
+    );
+
+    out[0]=ob.evaluated_get(depsgraph);
+
+    out[1]=bpy.data.meshes.new_from_object(out[0]);
+
+#    out[1]=out[0].to_mesh(
+#      preserve_all_data_layers=1,
+#      depsgraph=depsgraph
+#
+#    );
+
+  return out;
+
+# ---   *   ---   *   ---
+
 def reset_pose(ob):
   for pb in ob.parent.pose.bones:
     pb.matrix_basis=Matrix();
@@ -125,77 +201,55 @@ def shapebake(ob,frames):
 
   original_object=ob;
   duplis=[];
+  merge=[];
 
 # ---   *   ---   *   ---
-# get list of objects to bake together
+# get list of objects in collection(s?)
+# they'll be baked together
 
-  if ob.parent:
-    merge=(
+  for collection in ob.users_collection:
+    merge.extend([
 
-      [child.children[0] for child
-      in ob.parent.children
+      child for child
+      in collection.objects
 
-      if child.name.startswith("BP_")
-      and not child.children[0].hide_render]
+      if (
 
-    );
+        (isinstance(child.data,bpy.types.Mesh))
 
-  else:
-    merge=[ob];
+        and (not (child.hide_viewport))
+        and (not (child.hide_render  ))
+
+        and (not (child in merge))
+        and (not (child is ob   ))
+
+      )
+
+    ]);
 
 # ---   *   ---   *   ---
 
-  bpy.ops.object.select_all(
-    action='DESELECT'
-
-  );
-
-  # select objects in bake list
   original_object=ob;
-  select(ob);
-
-  for piece in merge:
-    select(piece);
-
-  set_ob_active(original_object);
+  select_all(ob,merge);
 
   bpy.ops.object.duplicate();
 
   for dupli in bpy.context.selected_objects:
 
+    nob,nme=to_mesh(dupli);
+
     duplis.append(dupli.data);
-    shapes=dupli.data.shape_keys;
-
-    nme=dupli.data;
-
-    if shapes:
-
-      nme=dupli.to_mesh(
-        scene,1,'RENDER'
-
-      );
-
-# ---   *   ---   *   ---
-
-      ansdata=shapes.animation_data;
-
-      if ansdata:
-        if ansdata.action:
-          bpy.data.actions.remove(ansdata.action);
-
-      for k in shapes.key_blocks:
-        dupli.shape_key_remove(k);
-
-# ---   *   ---   *   ---
-
-    dupli.data=nme;
     duplis.append(nme);
 
-    bpy.ops.object.join();
-    update_scene();
+    dupli.data=nme;
 
-    ob=bpy.context.object;
-    ob.data.name=ob.name;
+# ---   *   ---   *   ---
+
+  if(merge):
+    bpy.ops.object.join();
+
+  ob=bpy.context.object;
+  ob.data.name=ob.name;
 
 # ---   *   ---   *   ---
 
@@ -216,7 +270,7 @@ def shapebake(ob,frames):
   link_object(tgt);
 
   if not tgt.data.shape_keys:
-    sk_basis=tgt.shape_key_add(name='Basis');
+    tgt.shape_key_add(name='Basis');
 
   tgt.data.shape_keys.use_relative=True;
   ans=me.copy();
@@ -231,56 +285,32 @@ def shapebake(ob,frames):
   scene.frame_set(0);
   for n in range(frames):
 
-    bpy.ops.object.select_all(
-      action='DESELECT'
-
-    );
-
-    select(original_object);
-    for piece in merge:
-      select(piece);
-
-    set_ob_active(original_object);
-    bpy.ops.object.duplicate();
-
+#    select_all(original_object,merge);
+#    bpy.ops.object.duplicate();
+#
 # ---   *   ---   *   ---
-
-    for dupli in bpy.context.selected_objects:
-
-      duplis.append(dupli.data);
-      shapes=dupli.data.shape_keys;
-
-      if shapes:
-        nme=dupli.to_mesh(scene,1,'RENDER');
-        ansdata=shapes.animation_data;
-
-        if ansdata:
-          if ansdata.action:
-            bpy.data.actions.remove(
-              ansdata.action
-
-            );
-
-        for k in shapes.key_blocks:
-          dupli.shape_key_remove(k);
-
-        dupli.data=nme;
-        duplis.append(nme);
-
+#
+#    for dupli in bpy.context.selected_objects:
+#
+#      nob,nme=to_mesh(dupli);
+#
+#      duplis.append(dupli.data);
+#      duplis.append(nme);
+#
+#      dupli.data=nme;
+#
 # ---   *   ---   *   ---
-
-    bpy.ops.object.join();
-    update_scene();
-
-    ob=bpy.context.object;
-    ob.data.name=ob.name;
+#
+#    if(merge):
+#      bpy.ops.object.join();
+#
+#    ob=bpy.context.object;
+#    ob.data.name=ob.name;
 
     me=ob.data;
 
     sk=tgt.shape_key_add(name='frame_'+str(n));
     bake_deforms(ob,ans);
-
-    update_scene();
 
 # ---   *   ---   *   ---
 
@@ -289,10 +319,16 @@ def shapebake(ob,frames):
       vi=vert.index;
 
       sk.data[vi].co=[
-        FRACTOFL(FLTOFRAC(ax))
+
+# TODO: make this bit optional ;>
+#        FRACTOFL(FLTOFRAC(ax))
+
+        ax
         for ax in vert.co
 
       ];
+
+# ---   *   ---   *   ---
 
     scene.frame_set(
       scene.frame_current+1
@@ -322,6 +358,7 @@ def shapebake(ob,frames):
 # ---   *   ---   *   ---
 
     try:
+      pass;
       bpy.data.meshes.remove(dupli);
 
     except:
@@ -340,7 +377,7 @@ def shapebake(ob,frames):
 
 # ---   *   ---   *   ---
 
-  for n in range(0, frames):
+  for n in range(0,frames):
 
     shapes=tgt.data.shape_keys;
     alpha=1.0;
@@ -487,10 +524,7 @@ def take(ob):
 
   if ob.name+".CRK" in bpy.data.meshes:
     old_tgt=bpy.data.objects[ob.name+".CRK"];
-    for k in old_tgt.data.shape_keys.key_blocks:
-      old_tgt.shape_key_remove(k);
-
-    bpy.data.meshes.remove(old_tgt.data);
+    clean(old_tgt);
 
   if ob.parent:
     reset_pose(ob);
@@ -541,11 +575,44 @@ def take(ob):
 #    file.write(s);
 #
 ## ---   *   ---   *   ---
-#
-#  bpy.ops.object.select_all(action='DESELECT');
-#  tgt.select=1;
-#
-#  scene.objects.active=tgt;
+
+  bpy.ops.object.select_all(action='DESELECT');
+
+  select(tgt);
+  set_ob_active(tgt);
 
 # ---   *   ---   *   ---
 
+  return tgt;
+
+# ---   *   ---   *   ---
+
+def clean(ob):
+
+  me=ob.data;
+  shapes=me.shape_keys;
+
+  for c in ob.users_collection:
+    c.objects.unlink(ob);
+
+    if(not c.objects):
+      bpy.data.collections.remove(c);
+
+# ---   *   ---   *   ---
+
+  if(shapes):
+
+    ansdata=shapes.animation_data;
+    if(ansdata):
+
+      if(ansdata.action):
+        bpy.data.actions.remove(ansdata.action);
+
+    for k in shapes.key_blocks:
+      ob.shape_key_remove(k);
+
+# ---   *   ---   *   ---
+
+  bpy.data.meshes.remove(me);
+
+# ---   *   ---   *   ---
