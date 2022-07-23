@@ -1,17 +1,18 @@
 import sys;
-
 import subprocess;
-from os import environ as ENV;
+
+from os import (
+  environ as ENV,
+
+  getcwd,
+  chdir
+
+);
 
 # ---   *   ---   *   ---
 
 ROOT='/'.join(__file__.split("/")[0:-2]);
 DROOT=ROOT+'/data';
-
-# maybe we want to add more paths to this later?
-for v in [ROOT]:
-  if v not in sys.path:
-    sys.path.append(v);
 
 # ---   *   ---   *   ---
 
@@ -20,7 +21,8 @@ paths:dict={
   'ARPATH':ENV['ARPATH'],
 
   'arcana':ROOT+'/arcana',
-  'lytools':ROOT+'/lytools'
+  'lytools':ROOT+'/lytools',
+  'xforms':ROOT+'/xforms',
 
 };
 
@@ -34,6 +36,12 @@ if(not len(paths['ARPATH'])):
   );
 
   exit();
+
+# ---   *   ---   *   ---
+
+for v in paths.values():
+  if v not in sys.path:
+    sys.path.append(v);
 
 # ---   *   ---   *   ---
 
@@ -65,46 +73,70 @@ def walk(path:str,lookfor:str=''):
   return w;
 
 # ---   *   ---   *   ---
-#
-#from .PYZJC import *;
-#
-#def wrap_cfunc(lib, funcname, restype, argtypes):
-#
-#    func          = lib.__getattr__(funcname)
-#    func.restype  = restype
-#    func.argtypes = argtypes
-#
-#    return func
-#
+
+from .PYZJC import *;
+from ctypes import cdll;
+
+def wrap_cfunc(lib, funcname, restype, argtypes):
+
+    func          = lib.__getattr__(funcname)
+    func.restype  = restype
+    func.argtypes = argtypes
+
+    return func
+
+# ---   *   ---   *   ---
+
+pastcwd=getcwd();
+im_c=cdll.LoadLibrary(f"{paths['xforms']}/im.so");
+
+chdir(pastcwd);
+
+# ---   *   ---   *   ---
+
+im_c_nit=wrap_cfunc(
+  im_c,"nit",None,[size_t],
+
+);
+
+im_c_del=wrap_cfunc(
+  im_c,"del",None,[],
+
+);
+
+im_c_take=wrap_cfunc(
+
+  im_c,"take",size_t,[
+
+    size_t,
+    size_t,
+    size_t,
+
+    star(c_float)
+
+  ],
+
+);
+
+im_c_get_buff=wrap_cfunc(
+  im_c,"get_buff",star(c_float),[size_t],
+
+);
+
+# ---   *   ---   *   ---
+
 #import struct; plat=struct.calcsize("P") * 8
 #plat='x64' if plat==64 else 'Win32'
+
+# MAKING CTYPES ARRAYS
 #
-## pulla dir switcharoo so we can find dll
-#pastcwd=os.getcwd(); os.chdir(f"{root}\\bin\\{plat}");
+#    pth_l  = [
+#      cstr(kvrdir),
+#      cstr(root+"\\"),
+#      cstr(""),
+#      cstr(pecwd)
 #
-#from ctypes import WinDLL;
-#CSIDE=WinDLL(f"{root}\\bin\\{plat}\\blkmgk.dll");
+#    ];
 #
-## eh, sucks not to have -rpath
-#os.chdir(pastcwd);
-#
-#DLBLKMGK  = wrap_cfunc(CSIDE, "DLBLKMGK", None,       [                          ]);
-#_NTBLKMGK = wrap_cfunc(CSIDE, "NTBLKMGK", None,       [star(charstar)            ]);
-#_UTJOJ    = wrap_cfunc(CSIDE, "UTJOJ",    None,       [uint, uint, uint, charstar]);
-#_INJOJ    = wrap_cfunc(CSIDE, "INJOJ",    None,       [uint                      ]);
-#
-## ---   *   ---   *   ---
-#
-#import bpy; from . import blmod;
-#
-#def UTJOJ(i, dim, level, name): _UTJOJ(i, dim, level, cstr(name));
-#def INJOJ(i                  ): _INJOJ(i);
-#
-#def NTBLKMGK(pecwd):
-#
-#    kvrdir = root;
-#
-#    pth_l  = [cstr(kvrdir), cstr(root+"\\"), cstr(""), cstr(pecwd)];
-#    arr    = (charstar * len(pth_l))(); arr[:]=pth_l;
-#
-#    _NTBLKMGK(arr);
+#    arr=(charstar * len(pth_l))();
+#    arr[:]=pth_l;
