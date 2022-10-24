@@ -16,14 +16,6 @@ from mathutils import Matrix,Vector;
 
 import numpy as np;
 
-#   ---     ---     ---     ---     ---
-
-def ftb(num):
-  return struct.pack('<f',num);
-
-def ftbarr(arr):
-  return struct.pack('%sf'%len(arr), *arr);
-
 # ---   *   ---   *   ---
 
 FRAC_SCALE=64;

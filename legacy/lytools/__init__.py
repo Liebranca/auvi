@@ -77,13 +77,13 @@ def walk(path:str,lookfor:str=''):
 from .PYZJC import *;
 from ctypes import cdll;
 
-def wrap_cfunc(lib, funcname, restype, argtypes):
+def wrap_cfunc(lib,funcname,restype,argtypes):
 
-    func          = lib.__getattr__(funcname)
-    func.restype  = restype
-    func.argtypes = argtypes
+  func          = lib.__getattr__(funcname)
+  func.restype  = restype
+  func.argtypes = argtypes
 
-    return func
+  return func
 
 # ---   *   ---   *   ---
 

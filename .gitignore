@@ -1,7 +1,11 @@
+avto
+.avto-cache
+
 __pycache__/
 *.pyc
 *.stackdump
 *.exr
+*.so
 
 *.blend
 !matlib.blend
