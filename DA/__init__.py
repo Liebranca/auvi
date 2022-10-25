@@ -9,13 +9,19 @@
 #
 # CONTRIBUTORS
 # lyeb,
+
 # ---   *   ---   *   ---
+# deps
 
 import bpy;
 from importlib import reload;
+from arcana import Mod;
 
-from .iface import Anim;
+from .iface import Apparel;
 from .iface import Char;
+from .iface import Anim;
+
+# ---   *   ---   *   ---
 
 def update():
 
@@ -31,7 +37,7 @@ def update():
 # ---   *   ---   *   ---
 
   bpy.da_blocks={};
-  for mod in [Anim,Char]:
+  for mod in [Apparel,Char,Anim]:
     reload(mod);
     mod.register();
 

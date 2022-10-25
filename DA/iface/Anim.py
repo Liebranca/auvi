@@ -125,7 +125,7 @@ class DA_Anim_Panel(Panel):
 
 def register():
 
-  bpy.da_blocks['Anim']=unregister;
+  bpy.da_blocks[__file__]=unregister;
 
   register_class(DA_Anim);
   register_class(DA_Anim_Panel);

@@ -14,6 +14,7 @@
 # deps
 
 from .Meta import *;
+from . import Apparel;
 
 # ---   *   ---   *   ---
 # ROM
@@ -72,7 +73,12 @@ def rebuild_bodyparts(self,C):
 # shady use of unique id for storage
 # required to bypass the GENIUS of this API
 
-  Cache[id(self.skin)]=bp_dict;
+  ob=C.object;
+
+  if(id(ob) not in Cache):
+    Cache[id(ob)]=DA_Char();
+
+  Cache[id(ob)].bp_dict=bp_dict;
 
 # ---   *   ---   *   ---
 
@@ -84,7 +90,7 @@ def rebuild_mask(self,C):
 # ---   *   ---   *   ---
 # unhide all
 
-  bp_dict = Cache[id(self.skin)];
+  bp_dict = Cache[id(C.object)].bp_dict;
 
   attrs   = self.skin.color_attributes;
   mask    = attrs['BP_Mask::Combined'].data;
@@ -112,7 +118,42 @@ def rebuild_mask(self,C):
 
 # ---   *   ---   *   ---
 
-class DA_Char(PropertyGroup):
+def get_apparel_mask(self,C):
+
+  bp_dict = Cache[id(C.object)].bp_dict;
+  result  = 0;
+
+  for slot in Apparel.SLOTS:
+    piece = eval('self.'+slot);
+
+    if piece==None:
+      continue;
+
+    mask=piece.da_apparel.mask;
+
+    for key in mask.split(','):
+      result|=bp_dict['BP_Mask::'+key][0];
+
+  print(result);
+  self.skin_mask=result;
+
+# ---   *   ---   *   ---
+
+def remove_apparel(self,C):
+  pass;
+
+# ---   *   ---   *   ---
+
+class DA_Char:
+
+  def __init__(self):
+
+    self.bp_dict={};
+    self.apparel={};
+
+# ---   *   ---   *   ---
+
+class DA_Char_BL(PropertyGroup):
 
   skin: PointerProperty(
 
@@ -133,6 +174,13 @@ class DA_Char(PropertyGroup):
     update      = rebuild_mask,
 
   );
+
+  for slot in Apparel.SLOTS:
+    exec(slot+': PointerProperty('\
+      'type=Mesh,'\
+      'update=get_apparel_mask,'\
+      'poll=Apparel.match_'+slot+','\
+    ');');
 
 # ---   *   ---   *   ---
 
@@ -172,17 +220,25 @@ class DA_Char_Panel(Panel):
     row.prop(char,'skin');
     row.prop(char,'skin_mask');
 
+    for slot in Apparel.SLOTS:
+
+      if('_R' not in slot):
+        row=layout.row();
+        row.label(text=slot.replace('_L',''));
+
+      row.prop(char,slot,text='');
+
 # ---   *   ---   *   ---
 
 def register():
 
-  bpy.da_blocks['Char']=unregister;
+  bpy.da_blocks[__file__]=unregister;
 
-  register_class(DA_Char);
+  register_class(DA_Char_BL);
   register_class(DA_Char_Panel);
 
   Armature.da_char=PointerProperty(
-    type=DA_Char
+    type=DA_Char_BL
 
   );
 
@@ -190,7 +246,7 @@ def unregister():
 
   del Armature.da_char;
 
-  unregister_class(DA_Char);
+  unregister_class(DA_Char_BL);
   unregister_class(DA_Char_Panel);
 
 # ---   *   ---   *   ---
