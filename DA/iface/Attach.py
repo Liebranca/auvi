@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # ---   *   ---   *   ---
-# IFACE APPAREL
-# High fashion
+# IFACE ATTACH
+# Swords and sheathes
 #
 # LIBRE SOFTWARE
 # Licensed under GNU GPL3
@@ -19,65 +19,78 @@ from arcana.Tools import bl_list2enum;
 # ---   *   ---   *   ---
 # ROM
 
-SLOTS=[
+D_SLOTS={
 
-  'Helmet',
-  'Chest',
-  'Belt',
-  'Greaves',
+  'Hand_R': 'Hand.R',
 
-  'Cape',
-  'Aura',
+};
 
-  'Boot_L',
-  'Boot_R',
+SLOTS=D_SLOTS.keys();
+D_SLOTS={
 
-  'Glove_L',
-  'Glove_R',
+  key.upper():value
+  for key,value in D_SLOTS.items()
 
-  'Pauldron_L',
-  'Pauldron_R',
-
-];
+};
 
 I_SLOTS=['None'];
 I_SLOTS.extend(SLOTS);
 
 # ---   *   ---   *   ---
 
-class DA_Apparel_BL(PropertyGroup):
+MOUNTS=[
+
+  'None',
+  'Hips.L',
+
+];
+
+# ---   *   ---   *   ---
+
+def get_bone_name(self,C):
+  self.bone_name=D_SLOTS[self.slot];
+
+# ---   *   ---   *   ---
+
+class DA_Attach_BL(PropertyGroup):
+
+  mount: EnumProperty(
+
+    name        = 'Mount',
+
+    description =\
+      "Where the attachment goes when put away",
+
+    items       = bl_list2enum(MOUNTS),
+    default     = MOUNTS[0].upper(),
+
+  );
 
   slot: EnumProperty(
 
     name        = 'Slot',
 
-    description =
-      "Which equipment slot is occupied by "\
-      "this piece",
+    description =\
+      "Where the attachment goes when active",
 
     items       = bl_list2enum(I_SLOTS),
     default     = 'NONE',
 
+    update      = get_bone_name,
+
   );
 
-  mask: StringProperty(
-
-    name        = 'Mask',
-
-    description =\
-      "Comma-separated list of bodyparts "\
-      "hidden by this piece",
-
-    default     = '',
+  bone_name: StringProperty(
+    default     = 'NONE',
 
   );
 
 # ---   *   ---   *   ---
 
-class DA_Apparel_Panel(Panel):
+class DA_Attach_Panel(Panel):
 
-  bl_label       = 'DarkAge Apparel';
-  bl_idname      = 'DA_PT_Apparel_Panel';
+  bl_label       = 'DarkAge Attachment';
+  bl_idname      = 'DA_PT_Attach_Panel';
   bl_space_type  = 'PROPERTIES';
   bl_region_type = 'WINDOW';
   bl_context     = 'data';
@@ -93,7 +106,7 @@ class DA_Apparel_Panel(Panel):
     return (
 
         ob!=None
-    and "Apparel::" in ob.name
+    and "Attach::" in ob.name
     and isinstance(ob.data,Mesh)
 
     );
@@ -107,7 +120,7 @@ class DA_Apparel_Panel(Panel):
     ob     = C.active_object;
 
     scene  = C.scene;
-    piece  = ob.data.da_apparel;
+    piece  = ob.data.da_attach;
 
 # ---   *   ---   *   ---
 
@@ -115,27 +128,27 @@ class DA_Apparel_Panel(Panel):
     row.prop(piece,'slot');
 
     row=layout.row();
-    row.prop(piece,'mask');
+    row.prop(piece,'mount');
 
 # ---   *   ---   *   ---
 
 def register():
   bpy.da_blocks[__file__]=unregister;
 
-  register_class(DA_Apparel_BL);
-  register_class(DA_Apparel_Panel);
+  register_class(DA_Attach_BL);
+  register_class(DA_Attach_Panel);
 
-  Mesh.da_apparel=PointerProperty(
-    type=DA_Apparel_BL
+  Mesh.da_attach=PointerProperty(
+    type=DA_Attach_BL
 
   );
 
 def unregister():
 
-  del Mesh.da_apparel;
+  del Mesh.da_attach;
 
-  unregister_class(DA_Apparel_Panel);
-  unregister_class(DA_Apparel_BL);
+  unregister_class(DA_Attach_Panel);
+  unregister_class(DA_Attach_BL);
 
 # ---   *   ---   *   ---
 # generate poll funcs
@@ -148,7 +161,7 @@ for slot in SLOTS:
   exec(
 
     'def match_'+slot+'(self,ob):\n'\
-    '  return ob.da_apparel.slot=="'\
+    '  return ob.da_attach.slot=="'\
     +slot+'".upper();'
 
   );

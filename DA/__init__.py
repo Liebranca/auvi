@@ -18,6 +18,7 @@ from importlib import reload;
 from arcana import Mod;
 
 from .iface import Apparel;
+from .iface import Attach;
 from .iface import Char;
 from .iface import Anim;
 
@@ -37,7 +38,7 @@ def update():
 # ---   *   ---   *   ---
 
   bpy.da_blocks={};
-  for mod in [Apparel,Char,Anim]:
+  for mod in [Apparel,Attach,Char,Anim]:
     reload(mod);
     mod.register();
 

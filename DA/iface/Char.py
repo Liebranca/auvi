@@ -13,18 +13,10 @@
 # ---   *   ---   *   ---
 # deps
 
+from mathutils import Vector;
+
 from .Meta import *;
-from . import Apparel;
-
-# ---   *   ---   *   ---
-# ROM
-
-ATTACH_LIST=[
-
-  ('HAND_R','Right hand',''),
-  ('HIPS_L0','Hip sheath 0',''),
-
-];
+from . import Apparel,Attach;
 
 # ---   *   ---   *   ---
 # GBL
@@ -70,15 +62,15 @@ def rebuild_bodyparts(self,C):
     flag=flag<<1;
 
 # ---   *   ---   *   ---
-# shady use of unique id for storage
+# shady use of object name for storage
 # required to bypass the GENIUS of this API
 
   ob=C.object;
 
-  if(id(ob) not in Cache):
-    Cache[id(ob)]=DA_Char();
+  if(self.skin.name not in Cache):
+    Cache[self.skin.name]=DA_Char();
 
-  Cache[id(ob)].bp_dict=bp_dict;
+  Cache[self.skin.name].bp_dict=bp_dict;
 
 # ---   *   ---   *   ---
 
@@ -87,10 +79,13 @@ def rebuild_mask(self,C):
   if(not self.skin):
     return;
 
+  if(self.skin.name not in Cache):
+    rebuild_bodyparts(self,C);
+
 # ---   *   ---   *   ---
 # unhide all
 
-  bp_dict = Cache[id(C.object)].bp_dict;
+  bp_dict = Cache[self.skin.name].bp_dict;
 
   attrs   = self.skin.color_attributes;
   mask    = attrs['BP_Mask::Combined'].data;
@@ -118,47 +113,98 @@ def rebuild_mask(self,C):
 
 # ---   *   ---   *   ---
 
+def unequip(ob,equip,chnames):
+
+  if(equip in chnames):
+    bpy.data.objects.remove(
+      ob.children[chnames.index(equip)]
+
+    );
+
+# ---   *   ---   *   ---
+
+def equip_spawn(ob,equip,piece):
+  new_ob=bpy.data.objects.new(equip,piece);
+  ob.users_collection[0].objects.link(new_ob);
+  new_ob.parent=ob;
+
+  return new_ob;
+
+# ---   *   ---   *   ---
+
+def equip_apparel(ob,chnames,equip,piece):
+
+  if(equip not in chnames):
+    new_ob=equip_spawn(ob,equip,piece);
+
+    mod=new_ob.modifiers.new(
+      name='Armature',
+      type='ARMATURE',
+
+    );
+
+    mod.object=ob;
+    chnames=[ch.name for ch in ob.children];
+
+  ob.children[chnames.index(equip)].data=piece;
+
+# ---   *   ---   *   ---
+
+def equip_attach(
+
+  ob,
+  chnames,
+
+  equip,
+  piece
+
+):
+
+  if(equip not in chnames):
+
+    new_ob = equip_spawn(ob,equip,piece);
+    bone   = ob.data.bones[
+      piece.da_attach.bone_name
+
+    ];
+
+    new_ob.matrix_world=bone.matrix.to_4x4();
+    new_ob.parent_type='BONE';
+    new_ob.parent_bone=bone.name;
+
+    chnames=[ch.name for ch in ob.children];
+
+  ob.children[chnames.index(equip)].data=piece;
+
+# ---   *   ---   *   ---
+
 def get_apparel_mask(self,C):
 
+  if(not self.skin):
+    return;
+
+  if(self.skin.name not in Cache):
+    rebuild_bodyparts(self,C);
+
+# ---   *   ---   *   ---
+
   ob      = C.object;
-  bp_dict = Cache[id(ob)].bp_dict;
+  bp_dict = Cache[self.skin.name].bp_dict;
   result  = 0;
 
-  chnames = [ch.name for ch in ob.children];
-
   for slot in Apparel.SLOTS:
-    piece = eval('self.'+slot);
-    equip = 'BP_Equip::'+slot;
+
+    piece   = eval('self.'+slot);
+    equip   = 'BP_Equip::'+slot;
+
+    chnames = [ch.name for ch in ob.children];
 
     if piece==None:
-
-      if(equip in chnames):
-        bpy.data.objects.remove(
-          ob.children[chnames.index(equip)]
-
-        );
-
+      unequip(ob,equip,chnames);
       continue;
 
-    if(equip not in chnames):
-
-      new_ob=bpy.data.objects.new(equip,piece);
-      C.collection.objects.link(new_ob);
-
-      new_ob.parent=ob;
-
-      mod=new_ob.modifiers.new(
-        name='Armature',
-        type='ARMATURE',
-
-      );
-
-      mod.object=ob;
-
-    ob.children[
-      chnames.index(equip)
-
-    ].data=piece;
+    else:
+      equip_apparel(ob,chnames,equip,piece);
 
     mask=piece.da_apparel.mask;
 
@@ -169,6 +215,35 @@ def get_apparel_mask(self,C):
       result|=bp_dict['BP_Mask::'+key][0];
 
   self.skin_mask=result;
+
+# ---   *   ---   *   ---
+
+def attach_swap(self,C):
+
+  ob      = C.object;
+
+  chnames = [ch.name for ch in ob.children];
+
+  for slot in Attach.SLOTS:
+
+    piece   = eval('self.'+slot);
+    equip   = 'BP_Equip::'+slot;
+
+    chnames = [ch.name for ch in ob.children];
+
+    if piece==None:
+      unequip(ob,equip,chnames);
+      continue;
+
+    else:
+
+      equip_attach(
+        ob,
+        chnames,
+        equip,
+        piece
+
+      );
 
 # ---   *   ---   *   ---
 
@@ -208,6 +283,14 @@ class DA_Char_BL(PropertyGroup):
       'type=Mesh,'\
       'update=get_apparel_mask,'\
       'poll=Apparel.match_'+slot+','\
+    ');');
+
+  for slot in Attach.SLOTS:
+
+    exec(slot+': PointerProperty('\
+      'type=Mesh,'\
+      'update=attach_swap,'\
+      'poll=Attach.match_'+slot+','\
     ');');
 
 # ---   *   ---   *   ---
@@ -252,18 +335,33 @@ class DA_Char_Panel(Panel):
 # ---   *   ---   *   ---
 
     layout.separator();
-    row=layout.row();
+    box=layout.box();
+    row=box.row();
 
-    row.label(text='Equipment');
-
-# ---   *   ---   *   ---
+    row.label(text='Apparel');
+    box.separator();
 
     for slot in Apparel.SLOTS:
 
       if('_R' not in slot):
-        row=layout.row();
-        row.label(text='>'+slot.replace('_L',''));
+        row=box.row();
+        row.label(text='  '+slot.replace('_L',''));
 
+      row.prop(char,slot,text='');
+
+# ---   *   ---   *   ---
+
+    layout.separator();
+    box=layout.box();
+    row=box.row();
+
+    row.label(text='Attachments');
+    layout.separator();
+
+    for slot in Attach.SLOTS:
+
+      row=box.row();
+      row.label(text='  '+slot);
       row.prop(char,slot,text='');
 
 # ---   *   ---   *   ---
