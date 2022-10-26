@@ -46,9 +46,6 @@ def bl_list2enum(l):
 
 # ---   *   ---   *   ---
 
-def fuck(self,C):
-  print(self.slot);
-
 class DA_Apparel_BL(PropertyGroup):
 
   slot: EnumProperty(
@@ -61,8 +58,6 @@ class DA_Apparel_BL(PropertyGroup):
 
     items       = bl_list2enum(SLOTS),
     default     = SLOTS[0].upper(),
-
-    update=fuck,
 
   );
 

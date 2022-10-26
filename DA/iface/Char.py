@@ -62,7 +62,7 @@ def rebuild_bodyparts(self,C):
     indices=[
 
       i for i in range(len(attr.data))
-      if attr.data[i].color[0]<1
+      if attr.data[i].color[0]<=0
 
     ];
 
@@ -120,27 +120,55 @@ def rebuild_mask(self,C):
 
 def get_apparel_mask(self,C):
 
-  bp_dict = Cache[id(C.object)].bp_dict;
+  ob      = C.object;
+  bp_dict = Cache[id(ob)].bp_dict;
   result  = 0;
+
+  chnames = [ch.name for ch in ob.children];
 
   for slot in Apparel.SLOTS:
     piece = eval('self.'+slot);
+    equip = 'BP_Equip::'+slot;
 
     if piece==None:
+
+      if(equip in chnames):
+        bpy.data.objects.remove(
+          ob.children[chnames.index(equip)]
+
+        );
+
       continue;
+
+    if(equip not in chnames):
+
+      new_ob=bpy.data.objects.new(equip,piece);
+      C.collection.objects.link(new_ob);
+
+      new_ob.parent=ob;
+
+      mod=new_ob.modifiers.new(
+        name='Armature',
+        type='ARMATURE',
+
+      );
+
+      mod.object=ob;
+
+    ob.children[
+      chnames.index(equip)
+
+    ].data=piece;
 
     mask=piece.da_apparel.mask;
 
     for key in mask.split(','):
+      if(key == None or not len(key)):
+        continue;
+
       result|=bp_dict['BP_Mask::'+key][0];
 
-  print(result);
   self.skin_mask=result;
-
-# ---   *   ---   *   ---
-
-def remove_apparel(self,C):
-  pass;
 
 # ---   *   ---   *   ---
 
@@ -217,14 +245,24 @@ class DA_Char_Panel(Panel):
     char   = ob.data.da_char;
 
     row=layout.row();
-    row.prop(char,'skin');
-    row.prop(char,'skin_mask');
+
+    row.label(text='Base skin');
+    row.prop(char,'skin',text='');
+
+# ---   *   ---   *   ---
+
+    layout.separator();
+    row=layout.row();
+
+    row.label(text='Equipment');
+
+# ---   *   ---   *   ---
 
     for slot in Apparel.SLOTS:
 
       if('_R' not in slot):
         row=layout.row();
-        row.label(text=slot.replace('_L',''));
+        row.label(text='>'+slot.replace('_L',''));
 
       row.prop(char,slot,text='');
 
