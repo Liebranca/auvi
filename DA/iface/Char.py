@@ -164,13 +164,35 @@ def equip_attach(
 
     new_ob = equip_spawn(ob,equip,piece);
     bone   = ob.data.bones[
-      piece.da_attach.bone_name
+      piece.da_attach.attach_bone_name
 
     ];
 
     new_ob.matrix_world=bone.matrix.to_4x4();
     new_ob.parent_type='BONE';
     new_ob.parent_bone=bone.name;
+
+# ---   *   ---   *   ---
+
+    if(piece.da_attach.mount not in 'NONE'):
+      new_ob = equip_spawn(
+        ob,
+        equip+'_mount',
+
+        piece.da_attach.mount_mesh
+
+      );
+
+      bone   = ob.data.bones[
+        piece.da_attach.mount_bone_name
+
+      ];
+
+      new_ob.matrix_world=bone.matrix.to_4x4();
+      new_ob.parent_type='BONE';
+      new_ob.parent_bone=bone.name;
+
+# ---   *   ---   *   ---
 
     chnames=[ch.name for ch in ob.children];
 
@@ -233,6 +255,9 @@ def attach_swap(self,C):
 
     if piece==None:
       unequip(ob,equip,chnames);
+      chnames=[ch.name for ch in ob.children];
+
+      unequip(ob,equip+'_mount',chnames);
       continue;
 
     else:

@@ -7,7 +7,8 @@ x Autoload
 ~ Bodypart system
 x ^ Dynamic masking
 x ^ Apparel slots
-~ ^ Attachment slots
+x ^ Attachment slots
+x ^^ Mounts
 
 *>Anim tools
 ~ Hierarchical sync

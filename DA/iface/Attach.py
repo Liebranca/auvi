@@ -38,17 +38,29 @@ I_SLOTS.extend(SLOTS);
 
 # ---   *   ---   *   ---
 
-MOUNTS=[
+D_MOUNTS={
+  'Hips_L':'Hips.L',
 
-  'None',
-  'Hips.L',
+};
 
-];
+MOUNTS=D_MOUNTS.keys();
+D_MOUNTS={
+
+  key.upper():value
+  for key,value in D_MOUNTS.items()
+
+};
+
+I_MOUNTS=['None'];
+I_MOUNTS.extend(MOUNTS);
 
 # ---   *   ---   *   ---
 
-def get_bone_name(self,C):
-  self.bone_name=D_SLOTS[self.slot];
+def get_attach_bone_name(self,C):
+  self.attach_bone_name=D_SLOTS[self.slot];
+
+def get_mount_bone_name(self,C):
+  self.mount_bone_name=D_MOUNTS[self.mount];
 
 # ---   *   ---   *   ---
 
@@ -61,10 +73,27 @@ class DA_Attach_BL(PropertyGroup):
     description =\
       "Where the attachment goes when put away",
 
-    items       = bl_list2enum(MOUNTS),
-    default     = MOUNTS[0].upper(),
+    items       = bl_list2enum(I_MOUNTS),
+    default     = 'NONE',
+
+    update      = get_mount_bone_name,
 
   );
+
+  mount_bone_name: StringProperty(
+    default     = 'NONE',
+
+  );
+
+  mount_mesh: PointerProperty(
+    name        = 'Mount mesh',
+    description = "Model for the sheath",
+
+    type        = Mesh,
+
+  );
+
+# ---   *   ---   *   ---
 
   slot: EnumProperty(
 
@@ -76,11 +105,11 @@ class DA_Attach_BL(PropertyGroup):
     items       = bl_list2enum(I_SLOTS),
     default     = 'NONE',
 
-    update      = get_bone_name,
+    update      = get_attach_bone_name,
 
   );
 
-  bone_name: StringProperty(
+  attach_bone_name: StringProperty(
     default     = 'NONE',
 
   );
@@ -129,6 +158,9 @@ class DA_Attach_Panel(Panel):
 
     row=layout.row();
     row.prop(piece,'mount');
+
+    row=layout.row();
+    row.prop(piece,'mount_mesh');
 
 # ---   *   ---   *   ---
 
