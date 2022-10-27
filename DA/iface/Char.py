@@ -272,6 +272,87 @@ def attach_swap(self,C):
 
 # ---   *   ---   *   ---
 
+def anim_kls_match(self,ob):
+  name=bpy.context.object.data.name+'::';
+  return ob.name.startswith(name);
+
+# ---   *   ---   *   ---
+
+def get_secondary_anim(act_name,piece):
+
+  name=piece.name+'->'+act_name;
+
+  if(name not in bpy.data.actions):
+    bpy.data.actions.new(name);
+
+  if(piece.shape_keys.animation_data==None):
+    act=piece.shape_keys.animation_data_create();
+    act.use_fake_user=True;
+
+  return bpy.data.actions[name];
+
+# ---   *   ---   *   ---
+
+def set_anim(self,C):
+
+  ob  = C.object;
+  act = self.action;
+
+  ob.animation_data.action=act;
+
+# ---   *   ---   *   ---
+# set frame range
+
+  beg,end=self.action.frame_range;
+  end-=act.da_anim.is_loop==True;
+
+  C.scene.frame_start,C.scene.frame_end=\
+    int(beg),int(end);
+
+  clear=(act.da_anim.shape_frames==False);
+
+# ---   *   ---   *   ---
+# manage secondary actions
+
+  chnames=[ch.name for ch in ob.children];
+
+  for slot in Attach.SLOTS:
+
+    piece=eval('self.'+slot);
+
+    if(piece==None):
+      continue;
+
+    equip='BP_Equip::'+slot;
+    mount=equip+'_mount';
+
+# ---   *   ---   *   ---
+
+    if(clear):
+      sec=None;
+
+    else:
+      sec=get_secondary_anim(act.name,piece);
+
+    piece.shape_keys.animation_data.action=sec;
+
+# ---   *   ---   *   ---
+
+    if(mount not in chnames):
+      continue;
+
+    piece=ob.children[chnames.index(mount)].data;
+
+    if(clear):
+      sec=None;
+
+    else:
+      sec=get_secondary_anim(act.name,piece);
+
+    piece.shape_keys.animation_data.action=sec;
+
+# ---   *   ---   *   ---
+
 class DA_Char:
 
   def __init__(self):
@@ -300,6 +381,17 @@ class DA_Char_BL(PropertyGroup):
 
     default     = 0,
     update      = rebuild_mask,
+
+  );
+
+  action: PointerProperty(
+
+    name        = 'Action',
+    description = "Current action being edited",
+
+    type        = Action,
+    poll        = anim_kls_match,
+    update      = set_anim,
 
   );
 

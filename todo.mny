@@ -4,11 +4,13 @@
 x Autoload
 
 *>Characters
-~ Bodypart system
+x Bodypart system
 x ^ Dynamic masking
 x ^ Apparel slots
 x ^ Attachment slots
 x ^^ Mounts
+~ States
 
 *>Anim tools
-~ Hierarchical sync
+x Hierarchical sync
+~ State sync

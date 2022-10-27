@@ -14,16 +14,30 @@
 # deps
 
 from .Meta import *;
+from . import Attach,Char;
 
 # ---   *   ---   *   ---
-# ROM
 
-ATTACH_LIST=[
+def get_attach_equipped(self,C):
 
-  ('HAND_R','Right hand',''),
-  ('HIPS_L0','Hip sheath 0',''),
+  l    = ['None'];
+  ob   = C.object;
 
-];
+  char = ob.data.da_char;
+
+  for slot in Attach.SLOTS:
+    piece=eval('char.'+slot);
+
+    if(piece):
+      l.append(slot);
+
+  return [(x.upper(),x,'') for x in l];
+
+# ---   *   ---   *   ---
+
+def set_anim(self,C):
+  ob=C.object;
+  Char.set_anim(ob.data.da_char,C);
 
 # ---   *   ---   *   ---
 
@@ -42,31 +56,29 @@ class DA_Anim(PropertyGroup):
 
     name        = 'Attack.hitbox',
     description = \
-      "Which attachment will be used"\
+      "Which attachment will be used "\
       "to calculate the attack's hitbox.",
 
-    items       = ATTACH_LIST,
-    default     = 'HAND_R',
+    items       = get_attach_equipped,
+    default     = 0,
 
   );
 
-  frame_cnt: IntProperty(
+  is_loop: BoolProperty(
+    name        = 'Loop',
+    description = "Adjust frame range for looping",
 
-    name        = 'Frames',
-    description = \
-      "How many frames the animation has",
-
-    default     = 6,
-    min         = 0,
+    default     = True,
+    update      = set_anim,
 
   );
 
-  attach: PointerProperty(
+  shape_frames: BoolProperty(
+    name        = 'Shape',
+    description = "Enables attachment shapekeys",
 
-    name        = 'Attach',
-    description = "Test!",
-
-    type        = Object,
+    default     = False,
+    update      = set_anim,
 
   );
 
@@ -94,32 +106,100 @@ class DA_Anim_Panel(Panel):
 
     );
 
+# ---   *   ---   *   ---
+
+  def draw_shapebox(self,me,shapes):
+
+    layout = self.layout;
+
+    box    = layout.box();
+    row    = box.row();
+
+    row.label(text=me.name);
+    layout.separator();
+    row=box.row();
+
+    for shape in shapes[1:]:
+      row=box.row();
+      row.prop(shape,'value',text=shape.name);
+
+    layout.separator();
+
+# ---   *   ---   *   ---
+
   def draw(self, context):
 
     layout = self.layout;
 
     ob     = context.active_object;
+    char   = ob.data.da_char;
 
-    scene  = context.scene;
-    act    = ob.animation_data.action;
-
-    if act==None: return;
-
-    anim=act.da_anim;
+# ---   *   ---   *   ---
 
     row=layout.row();
+    row.prop(char,'action');
+
+    if(char.action==None):
+      return;
+
+    layout.separator();
+
+# ---   *   ---   *   ---
+
+    act  = ob.animation_data.action;
+    anim = act.da_anim;
+
+# ---   *   ---   *   ---
+
+    box=layout.box();
+
+    row=box.row();
+    row.label(text='Properties');
+
+    layout.separator();
+    box.row();
+
+    row=box.row();
+
     row.prop(anim,'is_attack');
-    row.prop(anim,'attack_hitbox');
+    row.prop(anim,'attack_hitbox',text='');
 
-    row=layout.row();
-    row.prop(anim,'frame_cnt');
+    row.prop(anim,'is_loop');
+    row.prop(anim,'shape_frames');
 
-    row=layout.row();
-    row.prop(anim,'attach');
+    if(anim.shape_frames==False):
+      return;
 
-#    row.operator("lytmat.initmat", text="INIT", icon="SMOOTH");
-#    layout.separator();
-#    row.label("Edges:");
+    layout.separator();
+
+# ---   *   ---   *   ---
+# attachment controls
+
+    char    = ob.data.da_char;
+    chnames = [ch.name for ch in ob.children];
+
+    for slot in Attach.SLOTS:
+      piece = eval('char.'+slot);
+      equip = 'BP_Equip::'+slot+'_mount';
+
+      if(piece==None):
+        continue;
+
+      shapes=piece.shape_keys.key_blocks;
+      self.draw_shapebox(piece,shapes);
+
+# ---   *   ---   *   ---
+# ^repeat for mount if present
+
+      if(equip in chnames):
+
+        me     = ob.children[
+          chnames.index(equip)
+
+        ].data;
+
+        shapes = me.shape_keys.key_blocks;
+        self.draw_shapebox(me,shapes);
 
 # ---   *   ---   *   ---
 
