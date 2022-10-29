@@ -19,6 +19,7 @@ from arcana import Mod;
 
 from .iface import Apparel;
 from .iface import Attach;
+from .iface import State;
 from .iface import Char;
 from .iface import Anim;
 
@@ -28,17 +29,12 @@ def update():
 
   if(hasattr(bpy,'da_blocks')):
     for key in bpy.da_blocks:
-
-      try:
-        bpy.da_blocks[key]();
-
-      except:
-        print("Couldn't unreg: %s"%key);
+      bpy.da_blocks[key]();
 
 # ---   *   ---   *   ---
 
   bpy.da_blocks={};
-  for mod in [Apparel,Attach,Char,Anim]:
+  for mod in [Apparel,Attach,State,Char,Anim]:
     reload(mod);
     mod.register();
 

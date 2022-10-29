@@ -24,8 +24,11 @@ from bpy.types import(
   Armature,
 
   PropertyGroup,
+
   Panel,
-  Operator
+  Operator,
+
+  UIList
 
 );
 
@@ -42,7 +45,9 @@ from bpy.props import(
   FloatVectorProperty,
   IntProperty,
   BoolProperty,
-  PointerProperty
+  BoolVectorProperty,
+  PointerProperty,
+  CollectionProperty
 
 );
 

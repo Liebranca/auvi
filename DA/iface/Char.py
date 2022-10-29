@@ -16,7 +16,9 @@
 from mathutils import Vector;
 
 from .Meta import *;
-from . import Apparel,Attach;
+from . import Apparel,Attach,State;
+
+from .State import DA_State_BL;
 
 # ---   *   ---   *   ---
 # GBL
@@ -352,6 +354,15 @@ def set_anim(self,C):
     piece.shape_keys.animation_data.action=sec;
 
 # ---   *   ---   *   ---
+# apply anim state
+
+  anim=act.da_anim;
+
+  for i in range(State.MASK_SZ):
+    if(anim.state_mask&(1<<i)):
+      State.apply(self.states[i]);
+
+# ---   *   ---   *   ---
 
 class DA_Char:
 
@@ -384,6 +395,21 @@ class DA_Char_BL(PropertyGroup):
 
   );
 
+  state_mask: IntProperty(
+
+    name        = 'State mask',
+    description = "Enforces vars for current state",
+
+    default     = 0,
+
+  );
+
+  state_i: IntProperty(default=0);
+  states: CollectionProperty(
+    type=DA_State_BL
+
+  );
+
   action: PointerProperty(
 
     name        = 'Action',
@@ -409,6 +435,24 @@ class DA_Char_BL(PropertyGroup):
       'update=attach_swap,'\
       'poll=Attach.match_'+slot+','\
     ');');
+
+# ---   *   ---   *   ---
+
+class DA_UL_Test(UIList):
+
+  # the number of args here is a clear
+  # testament to your incompetence
+  def draw_item(
+    self,C,layout,
+
+    ob,slot,icon,
+
+    active_data,
+    active_propname
+
+  ):
+
+    layout.prop(slot,'ID');
 
 # ---   *   ---   *   ---
 
@@ -445,6 +489,42 @@ class DA_Char_Panel(Panel):
     char   = ob.data.da_char;
 
     row=layout.row();
+
+# ---   *   ---   *   ---
+
+    row.template_list(
+      'DA_UL_Test','',
+
+      char,'states',
+      char,'state_i',
+
+    );
+
+    col=row.column();
+
+    col.operator(
+      'darkage.state_add',
+      text='',
+      icon='ADD'
+
+    );
+
+    col.operator(
+      'darkage.state_remove',
+      text='',
+      icon='REMOVE'
+
+    );
+
+    layout.separator();
+    box=layout.box();
+    box.row();
+
+    State.draw(char.states[char.state_i],box);
+
+    return;
+
+# ---   *   ---   *   ---
 
     row.label(text='Base skin');
     row.prop(char,'skin',text='');
@@ -487,6 +567,8 @@ def register():
 
   bpy.da_blocks[__file__]=unregister;
 
+  register_class(DA_UL_Test);
+
   register_class(DA_Char_BL);
   register_class(DA_Char_Panel);
 
@@ -501,6 +583,8 @@ def unregister():
 
   unregister_class(DA_Char_BL);
   unregister_class(DA_Char_Panel);
+
+  unregister_class(DA_UL_Test);
 
 # ---   *   ---   *   ---
 

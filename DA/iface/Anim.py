@@ -14,7 +14,7 @@
 # deps
 
 from .Meta import *;
-from . import Attach,Char;
+from . import Attach,Char,State;
 
 # ---   *   ---   *   ---
 
@@ -38,6 +38,39 @@ def get_attach_equipped(self,C):
 def set_anim(self,C):
   ob=C.object;
   Char.set_anim(ob.data.da_char,C);
+
+# ---   *   ---   *   ---
+# bit mask helpers
+
+def get_anim_state(self):
+
+  l=[];
+
+  for i in range(State.MASK_SZ):
+    b=1<<i;
+    l.append((self.state_mask&b)==b);
+
+  return l;
+
+def set_anim_state(self,values):
+
+  for i in range(State.MASK_SZ):
+    if(values[i]):
+      self.state_mask|=1<<i;
+
+    else:
+      self.state_mask&=~ (1<<i);
+
+# ---   *   ---   *   ---
+
+def apply_anim_state(self,C):
+
+  ob   = C.object;
+  char = ob.data.da_char;
+
+  for i in range(State.MASK_SZ):
+    if(self.state_mask&(1<<i)):
+      State.apply(char.states[i]);
 
 # ---   *   ---   *   ---
 
@@ -79,6 +112,20 @@ class DA_Anim(PropertyGroup):
 
     default     = False,
     update      = set_anim,
+
+  );
+
+# ---   *   ---   *   ---
+
+  state_mask: IntProperty(default=0);
+  v_state_mask: BoolVectorProperty(
+
+    size    = State.MASK_SZ,
+
+    get     = get_anim_state,
+    set     = set_anim_state,
+
+    update  = apply_anim_state,
 
   );
 
@@ -166,6 +213,37 @@ class DA_Anim_Panel(Panel):
 
     row.prop(anim,'is_loop');
     row.prop(anim,'shape_frames');
+
+# ---   *   ---   *   ---
+
+    layout.separator();
+    box=layout.box();
+    row=box.row();
+
+    box.use_property_split=False;
+    box.use_property_decorate=False;
+
+    row.label(text='States');
+    box.row();
+
+    row=box.row();
+    for i in range(State.MASK_SZ):
+
+      if(i==len(char.states)):
+        break;
+
+      if(i and not i%4):
+        row=box.row();
+
+      n=char.states[i].ID;
+      row.prop(
+        anim,'v_state_mask',
+        text=n,
+        index=i
+
+      );
+
+# ---   *   ---   *   ---
 
     if(anim.shape_frames==False):
       return;
