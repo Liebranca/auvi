@@ -1,14 +1,7 @@
-# AUVILIB
- A collection of community-made, forever free audio-visual library of assets. Made with UPBGE, for UPBGE.
+# AUVI
 
-Part a larger project. What you find in here is simply what may be useful to artists. For those interested in AUVILIB's more useful and arcane tooling, it is based on my KVR environment for Windows, which you would need for the full KVNSLRAT experience.
+Forever free assets and asset-making tools for game developers using Blender on Linux.
 
-#
+This project began as an UPBGE affaire exclusive to Blender 2.79; I am now slowly porting it to versions 2.8+ and making fixes and redesigns along the way.
 
-Regardless of whether you are trueborn kvrkin mystic or the more artistically inclined, it is necessary you adquire certain dependencies, which I will try my best to pack for you:
-
-### Stuff you \*need\* to run lytools:
-
--BlackMagic: https://github.com/Liebranca/KVR/releases/tag/v0.1a
-
-As for the aforementioned extras for the kvrkin brothers, the KVR and DSM repos are mayble the place you should further check.
+Due to this transition, the repo will remain over halfway in a state of complete disarray until all the small pieces are put in it's place.

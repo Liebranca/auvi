@@ -177,8 +177,72 @@ class DA_OT_State_Remove(Operator):
     ob   = C.object;
     char = ob.data.da_char;
 
-    i=char.state_i;
+    i    = char.state_i;
+
     char.states.remove(i);
+
+    return {'FINISHED'};
+
+# ---   *   ---   *   ---
+
+def wap(states,src_i,dst_i):
+
+  dst = states[dst_i];
+  src = states[src_i];
+
+  v=dst.ID;
+  dst.ID=src.ID;
+  src.ID=v;
+
+  for i in range(len(src.data)):
+    x=dst.data[i];
+    y=src.data[i];
+
+    v=[x.path,x.name,x.value,x.mode];
+    (x.path,x.name,x.value,x.mode)=\
+      (y.path,y.name,y.value,y.mode);
+
+    (y.path,y.name,y.value,y.mode)=v;
+
+# ---   *   ---   *   ---
+
+class DA_OT_State_Goup(Operator):
+
+  bl_idname      = "darkage.state_goup";
+  bl_label       = "Change state priority";
+  bl_description = "Change state priority";
+
+  def execute(self,C):
+
+    ob   = C.object;
+    char = ob.data.da_char;
+
+    i    = char.state_i;
+
+    if(i>0):
+      wap(char.states,i-1,i);
+      char.state_i-=1;
+
+    return {'FINISHED'};
+
+# ---   *   ---   *   ---
+
+class DA_OT_State_Godown(Operator):
+
+  bl_idname      = "darkage.state_godown";
+  bl_label       = "Change state priority";
+  bl_description = "Change state priority";
+
+  def execute(self,C):
+
+    ob   = C.object;
+    char = ob.data.da_char;
+
+    i    = char.state_i;
+
+    if(i<len(char.states)-1):
+      wap(char.states,i+1,i);
+      char.state_i+=1;
 
     return {'FINISHED'};
 
@@ -204,9 +268,13 @@ def register():
 
   register_class(DA_OT_State_Add);
   register_class(DA_OT_State_Remove);
+  register_class(DA_OT_State_Goup);
+  register_class(DA_OT_State_Godown);
 
 def unregister():
 
+  unregister_class(DA_OT_State_Godown);
+  unregister_class(DA_OT_State_Goup);
   unregister_class(DA_OT_State_Add);
   unregister_class(DA_OT_State_Remove);
 

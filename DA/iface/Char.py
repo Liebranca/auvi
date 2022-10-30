@@ -456,6 +456,84 @@ class DA_UL_Test(UIList):
 
 # ---   *   ---   *   ---
 
+class DA_State_Panel(Panel):
+
+  bl_label       = 'State Editor';
+  bl_idname      = 'DA_PT_State_Panel';
+  bl_space_type  = 'PROPERTIES';
+  bl_region_type = 'WINDOW';
+  bl_context     = 'data';
+  bl_category    = 'DA';
+
+  @classmethod
+  def poll(cls,C):
+
+    ob=C.active_object;
+
+    return (
+
+        ob!=None
+    and isinstance(ob.data,Armature)
+
+    );
+
+  def draw(self,C):
+
+    layout = self.layout;
+
+    ob     = C.active_object;
+    char   = ob.data.da_char;
+
+# ---   *   ---   *   ---
+
+    row=layout.row();
+
+    row.template_list(
+      'DA_UL_Test','',
+
+      char,'states',
+      char,'state_i',
+
+    );
+
+    col=row.column();
+
+    col.operator(
+      'darkage.state_add',
+      text='',
+      icon='ADD'
+
+    );
+
+    col.operator(
+      'darkage.state_remove',
+      text='',
+      icon='REMOVE'
+
+    );
+
+    col.operator(
+      'darkage.state_goup',
+      text='',
+      icon='TRIA_UP'
+
+    );
+
+    col.operator(
+      'darkage.state_godown',
+      text='',
+      icon='TRIA_DOWN'
+
+    );
+
+    layout.separator();
+    box=layout.box();
+    box.row();
+
+    State.draw(char.states[char.state_i],box);
+
+# ---   *   ---   *   ---
+
 class DA_Char_Panel(Panel):
 
   bl_label       = 'DarkAge Character';
@@ -489,40 +567,6 @@ class DA_Char_Panel(Panel):
     char   = ob.data.da_char;
 
     row=layout.row();
-
-# ---   *   ---   *   ---
-
-    row.template_list(
-      'DA_UL_Test','',
-
-      char,'states',
-      char,'state_i',
-
-    );
-
-    col=row.column();
-
-    col.operator(
-      'darkage.state_add',
-      text='',
-      icon='ADD'
-
-    );
-
-    col.operator(
-      'darkage.state_remove',
-      text='',
-      icon='REMOVE'
-
-    );
-
-    layout.separator();
-    box=layout.box();
-    box.row();
-
-    State.draw(char.states[char.state_i],box);
-
-    return;
 
 # ---   *   ---   *   ---
 
@@ -571,6 +615,7 @@ def register():
 
   register_class(DA_Char_BL);
   register_class(DA_Char_Panel);
+  register_class(DA_State_Panel);
 
   Armature.da_char=PointerProperty(
     type=DA_Char_BL
@@ -583,6 +628,7 @@ def unregister():
 
   unregister_class(DA_Char_BL);
   unregister_class(DA_Char_Panel);
+  unregister_class(DA_State_Panel);
 
   unregister_class(DA_UL_Test);
 
