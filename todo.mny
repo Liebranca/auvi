@@ -9,8 +9,10 @@ x ^ Dynamic masking
 x ^ Apparel slots
 x ^ Attachment slots
 x ^^ Mounts
-~ States
+x States
 
 *>Anim tools
 x Hierarchical sync
 ~ State sync
+~ Render out frames
+~ ^ JOJ-pack animation strip
