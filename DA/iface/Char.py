@@ -295,12 +295,164 @@ def get_secondary_anim(act_name,piece):
 
 # ---   *   ---   *   ---
 
+def fcurves_path(fcurves):
+
+  return [
+
+    fcurve.data_path
+    for fcurve in fcurves
+
+  ];
+
+# ---   *   ---   *   ---
+
+def fcurves_map(path):
+
+  out={};
+
+  for idex,key in path.items():
+    if(key in out):
+      out[key].append(idex);
+
+    else:
+      out[key]=[idex];
+
+  return out;
+
+# ---   *   ---   *   ---
+
+def fcurves_imit(dst,src):
+
+  out      = {};
+
+  dst_path = fcurves_path(dst.fcurves);
+  src_path = fcurves_path(src.fcurves);
+
+  cpy_path = list(dst_path);
+  top      = len(dst_path);
+
+  for key in src_path:
+
+    if(key not in dst_path):
+      dst.fcurves.new(key,index=top);
+      cpy_path.append(key);
+      top+=1;
+
+  dst_path=fcurves_map({
+    i:s for i,s in enumerate(cpy_path)
+
+  });
+
+  src_path=fcurves_map({
+    i:s for i,s in enumerate(src_path)
+
+  });
+
+  for key in src_path:
+
+    for i in range(len(src_path[key])):
+
+      dst_idex=dst_path[key][i];
+      src_idex=src_path[key][i];
+
+      out[dst_idex]=src_idex;
+
+  return out;
+
+# ---   *   ---   *   ---
+
+def copy_pose(dst,dst_f,src,src_f):
+
+  path=fcurves_imit(dst,src);
+
+  for dst_i,src_i in path.items():
+
+    c0=dst.fcurves[dst_i];
+    c1=src.fcurves[src_i];
+
+    f0=c0.keyframe_points;
+    f1=c1.keyframe_points;
+
+    frame=None;
+
+    for key in f1:
+      if(key.co[0]==src_f):
+        frame=key;
+        break;
+
+    if(frame):
+      kf=frame.co[1];
+
+    else:
+
+      idex=None;
+
+      if(src_f==src.frame_range[0]):
+        idex=0;
+
+      elif(src_f==src.frame_range[1]):
+        idex=-1;
+
+      if(idex!=None):
+        kf=f1[idex].co[1];
+
+    if(kf!=None):
+
+      frame=None;
+      for key in f0:
+        if(key.co[0]==dst_f):
+          frame=key;
+          break;
+
+      if(frame):
+        f0.remove(frame);
+
+      f0.insert(dst_f,kf);
+
+# ---   *   ---   *   ---
+
+def enforce_transition(act):
+
+  if(act.da_anim.trans_beg):
+
+    src=act.da_anim.trans_beg;
+
+    copy_pose(
+      act,
+      act.frame_range[0],
+
+      src,
+      src.frame_range[1]
+
+    );
+
+  if(act.da_anim.trans_end):
+
+    src=act.da_anim.trans_end;
+
+    frame=act.frame_range[1];
+    frame+=act.da_anim.trans_len;
+
+    copy_pose(
+      act,
+      frame,
+
+      src,
+      src.frame_range[0]
+
+    );
+
+# ---   *   ---   *   ---
+
 def set_anim(self,C):
 
   ob  = C.object;
   act = self.action;
 
   ob.animation_data.action=act;
+
+  if(act.da_anim.is_trans):
+    enforce_transition(act);
 
 # ---   *   ---   *   ---
 # set frame range

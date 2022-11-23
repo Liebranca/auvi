@@ -117,6 +117,53 @@ class DA_Anim(PropertyGroup):
 
 # ---   *   ---   *   ---
 
+  is_trans: BoolProperty(
+    name        = 'Transition',
+    description =
+      "Forces first and last frames of "
+      "animation to come from other actions",
+
+    default     = False,
+    update      = set_anim,
+
+  );
+
+  trans_beg: PointerProperty(
+    name        = 'Begin',
+    description =
+      "Animation being transitioned from",
+
+    type        = Action,
+    poll        = Char.anim_kls_match,
+    update      = set_anim
+
+  );
+
+  trans_end: PointerProperty(
+    name        = 'End',
+    description =
+      "Animation being transitioned to",
+
+    type        = Action,
+    poll        = Char.anim_kls_match,
+    update      = set_anim
+
+  );
+
+  trans_len: IntProperty(
+    name        = 'Length',
+    description =
+      "End pose is pasted at frame_end+length",
+
+    default     = 0,
+    min         = 0,
+
+    update      = set_anim,
+
+  );
+
+# ---   *   ---   *   ---
+
   state_mask: IntProperty(default=0);
   v_state_mask: BoolVectorProperty(
 
@@ -213,6 +260,31 @@ class DA_Anim_Panel(Panel):
 
     row.prop(anim,'is_loop');
     row.prop(anim,'shape_frames');
+
+    row=box.row();
+    row.prop(anim,'is_trans');
+
+# ---   *   ---   *   ---
+
+    if(anim.is_trans):
+      layout.separator();
+      box=layout.box();
+      row=box.row();
+
+      box.use_property_split=False;
+      box.use_property_decorate=False;
+
+      row.label(text='Transition');
+      box.row();
+
+      row=box.row();
+      row.prop(anim,'trans_beg');
+
+      row=box.row();
+      row.prop(anim,'trans_end');
+
+      row=box.row();
+      row.prop(anim,'trans_len');
 
 # ---   *   ---   *   ---
 
