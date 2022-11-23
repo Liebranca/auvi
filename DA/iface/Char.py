@@ -275,7 +275,7 @@ def attach_swap(self,C):
 # ---   *   ---   *   ---
 
 def anim_kls_match(self,ob):
-  name=bpy.context.object.data.name+'::';
+  name=bpy.context.active_object.data.name+'::';
   return ob.name.startswith(name);
 
 # ---   *   ---   *   ---
@@ -444,9 +444,21 @@ def enforce_transition(act):
 
 # ---   *   ---   *   ---
 
+def get_anim_list(self,C):
+
+  out=[];
+
+  for anim in bpy.data.actions:
+    if(anim_kls_match(None,anim)):
+      out.append(anim);
+
+  return out;
+
+# ---   *   ---   *   ---
+
 def set_anim(self,C):
 
-  ob  = C.object;
+  ob  = C.active_object;
   act = self.action;
 
   ob.animation_data.action=act;

@@ -27,7 +27,7 @@ def DOS(cmd,args,dec=1):
   p=subprocess.Popen(
 
     line,
-    stdout=subprocess.PIPE,
+    stdout=subprocess.PIPE
 
   );
 

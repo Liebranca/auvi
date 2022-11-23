@@ -22,6 +22,7 @@ from .iface import Attach;
 from .iface import State;
 from .iface import Char;
 from .iface import Anim;
+from .iface import Spritebake;
 
 # ---   *   ---   *   ---
 
@@ -34,7 +35,14 @@ def update():
 # ---   *   ---   *   ---
 
   bpy.da_blocks={};
-  for mod in [Apparel,Attach,State,Char,Anim]:
+  for mod in [
+
+    Apparel,Attach,
+    State,Char,Anim,
+    Spritebake
+
+  ]:
+
     reload(mod);
     mod.register();
 
