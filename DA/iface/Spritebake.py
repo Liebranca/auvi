@@ -39,6 +39,8 @@ def save_settings():
 
     r.filepath,
 
+    bpy.context.scene.frame_current,
+
   ];
 
 # ---   *   ---   *   ---
@@ -59,7 +61,9 @@ def load_settings(data):
     r.filter_size,
     r.film_transparent,
 
-    r.filepath
+    r.filepath,
+
+    bpy.context.scene.frame_current,
 
   )=data;
 
@@ -124,25 +128,27 @@ def call_joj_sprite(
 
 ):
 
-  files=[];
-
-  for entry in data['meta']:
-    i,length,n,names=entry;
-    files.extend(names);
-
-
   args=[
 
     '-sd',data['srcdir'],
-    '-o',data['fname'],
-    '-as',str(data['atlas_sz']),
+    '-o',data['srcdir']+'sheet',
+    '-as',str(2**data['atlas_sz']),
 
   ];
 
-  args.extend(files);
-
+  args.extend(data['files']);
   DOS(ARPATH+'/bin/joj-sprite',args);
-#  DOS('rm',srcdir+'*.png');
+
+  args=[
+
+    '-o',data['srcdir']+'sheet',
+
+    data['srcdir']+'sheet.joj',
+    data['srcdir']+'sheet.crk',
+
+  ];
+
+  DOS(ARPATH+'/bin/dafpack',args);
 
 # ---   *   ---   *   ---
 # exec entry point
@@ -167,7 +173,8 @@ def run():
 
   set_render_config();
 
-  anims = [
+  old_anim =char.action;
+  anims    =[
 
     anim for anim in get_anim_list(char,C)
     if 'TPOSE' not in anim.name
@@ -196,7 +203,13 @@ def run():
 
   )+'/';
 
-  meta   = [];
+  joj_args={
+    'srcdir':srcdir,
+
+    'files':[],
+    'atlas_sz':sb.atlas_sz
+
+  };
 
   for anim in anims:
 
@@ -205,29 +218,17 @@ def run():
     char.action=anim;
     i,length,names=render(base,type,i);
 
-    meta.append([
-
-      i,length,anim.name,names
-
-    ]);
+    joj_args['files'].extend(names);
 
     print('\n');
     j+=1;
 
-  load_settings(old);
-
-  joj_args={
-    'srcdir':srcdir,
-    'fname':srcdir+'sheet',
-
-    'meta':meta,
-    'atlas_sz':sb.atlas_sz
-
-  };
-
   call_joj_sprite(C,joj_args);
 
+  load_settings(old);
   print("\x1b[37;1m::\x1b[0m done\n");
+
+  char.action=old_anim;
 
 # ---   *   ---   *   ---
 # making a class just for a one liner:
