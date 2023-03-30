@@ -40,6 +40,7 @@ I_SLOTS.extend(SLOTS);
 
 D_MOUNTS={
   'Hips_L':'Hips.L',
+  'Hips_B':'Hips.back',
 
 };
 

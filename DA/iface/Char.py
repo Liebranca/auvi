@@ -486,7 +486,13 @@ def set_anim(self,C):
 
     piece=eval('self.'+slot);
 
-    if(piece==None):
+    if(
+
+       piece==None
+    or piece.shape_keys.animation_data == None
+
+    ):
+
       continue;
 
     equip='BP_Equip::'+slot;

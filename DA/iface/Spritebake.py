@@ -95,7 +95,7 @@ def render(base,type,off):
   sc     = bpy.context.scene;
   j      = off;
 
-  length = (sc.frame_end+1)-sc.frame_start;
+  length = (sc.frame_end)-sc.frame_start;
   names  = [];
 
   for i in range(
@@ -138,6 +138,10 @@ def call_joj_sprite(
 
   args.extend(data['files']);
   DOS(ARPATH+'/bin/joj-sprite',args);
+  DOS(ARPATH+'/auvi/bin/ans',
+    [data['srcdir']+'sheet.ans']
+
+  );
 
   args=[
 
@@ -145,10 +149,11 @@ def call_joj_sprite(
 
     data['srcdir']+'sheet.joj',
     data['srcdir']+'sheet.crk',
+    data['srcdir']+'sheet.ans',
 
   ];
 
-  DOS(ARPATH+'/bin/dafpack',args);
+  DOS(ARPATH+'/bin/daf',args);
 
 # ---   *   ---   *   ---
 # exec entry point
@@ -157,8 +162,9 @@ def run():
 
   C    = bpy.context;
 
+  ob   = C.active_object
   sb   = C.scene.da_spritebake;
-  char = C.active_object.data.da_char;
+  char = ob.data.da_char;
 
   old  = save_settings();
 
@@ -183,6 +189,7 @@ def run():
 
   i     = 0;
   j     = 1;
+  tot   = 0;
 
   J     = len(anims);
 
@@ -211,21 +218,47 @@ def run():
 
   };
 
+  plout='';
+
   for anim in anims:
 
     print(f"\x1b[37;1m::\x1b[0m {j}/{J}");
 
-    char.action=anim;
-    i,length,names=render(base,type,i);
+    char.action    = anim;
+    i,length,names = render(base,type,i);
+
+    # shorten animkey
+    tag=anim.name;
+    tag=tag.replace(ob.data.name + '::','');
+
+    plout=(
+
+      plout
+
+    + f"{j} {tag} "
+    + f"{tot} {tot+length} "
+    + f"{length}"
+
+    + "\n"
+
+    );
 
     joj_args['files'].extend(names);
 
     print('\n');
-    j+=1;
+
+    j   += 1;
+    tot += length+1;
+
+  with open(
+    joj_args['srcdir']+"sheet.ans",
+    'w+'
+
+  ) as f: f.write(plout);
 
   call_joj_sprite(C,joj_args);
-
   load_settings(old);
+
   print("\x1b[37;1m::\x1b[0m done\n");
 
   char.action=old_anim;

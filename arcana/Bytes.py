@@ -197,8 +197,10 @@ class CRK:
           vert = CRK.VERTEX.read(file);
           uf   = [];
 
-          for key in ['X','Y','Z','UVX','UVY']:
+          for key in ['X','Y','Z','UVX']:
             uf.append(unfrac_u8(vert[key]));
+
+          uf.append(1.0-unfrac_u8(vert['UVY']));
 
           verts.append(uf);
 
