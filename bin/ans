@@ -1,0 +1,67 @@
+#!/usr/bin/perl
+# ---   *   ---   *   ---
+# ANS
+# Reads animation metadata
+#
+# LIBRE SOFTWARE
+# Licensed under GNU GPL3
+# be a bro an inherit
+#
+# CONTRIBUTORS
+# lyeb,
+
+# ---   *   ---   *   ---
+# deps
+
+package main;
+
+  use v5.36.0;
+  use strict;
+  use warnings;
+
+  use Cwd qw(abs_path);
+  use English qw(-no_match_vars);
+
+  use lib $ENV{'ARPATH'}.'/lib/sys/';
+
+  use Style;
+
+  use Arstd::Bytes;
+  use Arstd::IO;
+
+# ---   *   ---   *   ---
+# take in
+
+my $out  = $NULLSTR;
+my $path = shift @ARGV
+or die "No input provided";
+
+$path=abs_path($path);
+
+# ---   *   ---   *   ---
+# open file
+
+my $body  = orc($path);
+my @lines = split $NEWLINE_RE,$body;
+
+# write elem cnt
+$out.=pack 'S<',int(@lines);
+
+# write each elem
+for my $line(@lines) {
+
+  my ($idex,$tag,$beg,$end,$len)=
+    split $SPACE_RE,$line;
+
+  my $tag_sz=length $tag;
+
+  $out.=pastr($tag);
+  $out.=pack 'S<' x 3,$beg,$end,$len;
+
+};
+
+# overwrite spit
+owc($path,$out);
+
+# ---   *   ---   *   ---
+1; # ret

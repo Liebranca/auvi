@@ -1,0 +1,109 @@
+#!/usr/bin/perl
+# ---   *   ---   *   ---
+# COLDPY
+# Crude pytopl
+#
+# LIBRE SOFTWARE
+# Licensed under GNU GPL3
+# be a bro and inherit
+#
+# CONTRIBUTORS,
+# lyeb
+
+# ---   *   ---   *   ---
+# deps
+
+  use v5.36.0;
+  use strict;
+  use warnings;
+
+  use Storable;
+
+  use English qw(-no_match_vars);
+  use lib $ENV{'ARPATH'}.'/lib/sys/';
+
+  use Style;
+  use Arstd::IO;
+
+  use Cli;
+
+# ---   *   ---   *   ---
+# ROM
+
+  my $DELIM_RE=qr{^[\{\[\(]|[\)\]\}]$}x;
+  my $CLASS_RE=qr{^<class \s'|'>$}x;
+
+# ---   *   ---   *   ---
+# commandline
+
+  my $M=Cli->nit(
+
+    {id=>'extract',short=>'-x',argc=>0},
+    {id=>'inject',short=>'-i',argc=>0},
+
+  );
+
+# ---   *   ---   *   ---
+
+sub extract_dict($data) {
+
+  my $out={};
+  $data=~ s[$DELIM_RE][]sxgm;
+
+  for my $entry(split $COMMA_RE,$data) {
+
+    my ($key,$value)=split $COLON_RE,$entry;
+    $out->{$key}=$value;
+
+  };
+
+  return $out;
+
+};
+
+# ---   *   ---   *   ---
+
+sub inject_dict($data) {
+
+  return q[{].(join q[,],
+    map {$ARG.':'.$data->{$ARG}} keys %$data
+
+  ).q[}];
+
+};
+
+# ---   *   ---   *   ---
+
+sub entry() {
+
+  my @args=$M->take(@ARGV);
+
+  if($M->{extract} ne $NULL) {
+
+    my ($class,$data,$path)=@args;
+    $class=~ s[$CLASS_RE][]sxgm;
+
+    my $out={
+      type=>$class,
+      data=>extract_dict($data)
+
+    };
+
+    store($out,$path);
+
+  } elsif($M->{inject} ne $NULL) {
+
+    my ($path)=@args;
+    my $ref=retrieve($path);
+
+    say $ref->{type},q[(],
+      inject_dict($ref->{data}),
+
+    q[)];
+
+  };
+
+};
+
+# ---   *   ---   *   ---
+entry();1; # ret
