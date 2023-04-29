@@ -14,9 +14,13 @@
 # ---   *   ---   *   ---
 # deps
 
+import os;
+
 from mathutils import Vector;
 from Avt.cwrap import real,wide,ftb;
+
 from .Fmat import *;
+from .Xfer import DOS;
 
 # ---   *   ---   *   ---
 
@@ -135,7 +139,7 @@ class CRK:
   );
 
   # size of single raw vert
-  DUMP_STRIDE=48;
+  DUMP_STRIDE=56;
 
   # verts + indices + poses + matidex
   DUMP_HED_SZ=2+2+2+2;
@@ -238,26 +242,36 @@ class CRK:
 # write blender mesh data to
 # binary float dump
 #
-# this is later read at C-side
-# for further processing
+# THEN invoke bmesh2crk
 
   @staticmethod
-  def bl_to_fdump(ob,fpath):
+  def bl_to_crk(ob,fpath):
 
     me    = ob.data;
     mat   = 0;
     poses = 1;
 
+    files = [f"{fpath}_meta"];
+
     # serialize metadata
-    with open(f"{fpath}_meta",'wb+') as f:
+    with open(files[-1],'wb+') as f:
       f.write(CRK.bl_write_meta(me,poses,mat));
 
     # ^serialize each pose
     for i in range(0,poses):
 
+      files.append(f"{fpath}_pose{i}");
+
       # TODO: bl_adv_pose for animated meshes
-      with open(f"{fpath}_pose{i}",'wb+') as f:
+      with open(files[-1],'wb+') as f:
         f.write(CRK.bl_write_pose(ob));
+
+    # invoke C-side
+    DOS('bmesh2crk',[fpath]);
+
+    # clean temp files
+    for f in files:
+      os.remove(f);
 
 # ---   *   ---   *   ---
 # ^takes note of metadata
@@ -268,7 +282,7 @@ class CRK:
     hbuff=bytearray(CRK.DUMP_HED_SZ);
 
     hbuff[0:2]=ftb(wide,[len(me.vertices)]);
-    hbuff[2:4]=ftb(wide,[len(me.polygons)]);
+    hbuff[2:4]=ftb(wide,[len(me.polygons)*3]);
     hbuff[4:6]=ftb(wide,[poses]);
     hbuff[6:8]=ftb(wide,[mat]);
 
@@ -345,8 +359,8 @@ class CRK:
 
         # write uvs
         uv=loops[li].uv;
-        vbuff[svi + 40 : svi + 44]=ftb(real,[uv[0]]);
-        vbuff[svi + 44 : svi + 48]=ftb(real,[uv[1]]);
+        vbuff[svi + 48 : svi + 52]=ftb(real,[uv[0]]);
+        vbuff[svi + 52 : svi + 56]=ftb(real,[uv[1]]);
 
         # write indices
         ibuff[idex+0:idex+2]=vi.to_bytes(2,'little');
@@ -378,15 +392,12 @@ class CRK:
         vbuff[svi + 28 : svi + 32]=ftb(real,[t[1]]);
         vbuff[svi + 32 : svi + 36]=ftb(real,[t[2]]);
 
-        # ^bitangent is skipped
-        # we calculate it's handedness instead
+        # write bitangent
         b=loop.bitangent;
-        n=vert.normal;
         b=[b[0],b[2],-b[1]];
-        n=[n[0],n[2],-n[1]];
-
-        h=bhand(t,b,n);
-        vbuff[svi + 36 : svi + 40]=ftb(real,[h]);
+        vbuff[svi + 36 : svi + 40]=ftb(real,[b[0]]);
+        vbuff[svi + 40 : svi + 44]=ftb(real,[b[1]]);
+        vbuff[svi + 44 : svi + 48]=ftb(real,[b[2]]);
 
     me.free_tangents();
 

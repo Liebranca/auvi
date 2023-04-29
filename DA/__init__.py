@@ -24,7 +24,11 @@ from .iface import Char;
 from .iface import Anim;
 from .iface import Spritebake;
 
+from .iface import CRK;
+
 # ---   *   ---   *   ---
+# used to reload the entire module
+# from blender's python console
 
 def update():
 
@@ -39,7 +43,7 @@ def update():
 
     Apparel,Attach,
     State,Char,Anim,
-    Spritebake
+    Spritebake,CRK
 
   ]:
 
