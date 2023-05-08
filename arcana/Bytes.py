@@ -334,6 +334,8 @@ class CRK:
     loops = me.uv_layers.active.data;
     idex  = 0;
 
+    vt    = [None for i in range(len(me.vertices))];
+
     for face in me.polygons:
       for vi,li in zip(
         face.vertices,
@@ -344,6 +346,8 @@ class CRK:
         svi  = vi * CRK.DUMP_STRIDE;
         loop = me.loops[li];
         vert = me.vertices[vi];
+
+        vt[vi]=vert;
 
         # write coords
         co=vert.co;

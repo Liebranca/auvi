@@ -20,3 +20,13 @@ def bl_list2enum(l):
   return [(x.upper(),x,'') for x in l];
 
 # ---   *   ---   *   ---
+# generic code emitter
+
+def codice(src,keys):
+
+  for key,value in keys.items():
+    src=src.replace(key,value);
+
+  return src;
+
+# ---   *   ---   *   ---
