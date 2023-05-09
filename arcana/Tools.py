@@ -30,3 +30,17 @@ def codice(src,keys):
   return src;
 
 # ---   *   ---   *   ---
+# attr is not meant to be written
+
+def isro(o,attr):
+
+  v=getattr(o,attr);
+
+  try:
+    setattr(o,attr,v);
+    return 0;
+
+  except AttributeError:
+    return 1;
+
+# ---   *   ---   *   ---
