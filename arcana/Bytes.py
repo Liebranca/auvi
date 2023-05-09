@@ -17,7 +17,12 @@
 import os;
 
 from mathutils import Vector;
-from Avt.cwrap import real,wide,ftb;
+
+from Avt.cwrap import (
+  real,wide,byte,
+  pastr8,ftb,
+
+);
 
 from .Fmat import *;
 from .Xfer import DOS;

@@ -13,23 +13,27 @@
 # ---   *   ---   *   ---
 # deps
 
-import bpy;
+import bpy,pickle;
 
 from bpy.types import (
 
   bpy_prop_array,
 
   Mesh,
+  Image,
+
   ShaderNode,
+  ShaderNodeTree,
 
 );
 
+from mathutils import Vector,Euler;
 from arcana.Tools import isro;
 
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.2b';
+VERSION = 'v0.00.3b';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
@@ -55,6 +59,68 @@ SHD_ATTRS=[
 
 SHD_ATTRS.extend(dir(ShaderNode));
 SHD_ATTRS={key:None for key in SHD_ATTRS};
+
+# ---   *   ---   *   ---
+# wrapper class to rebuild
+# bpy image references
+
+class Image_Bld:
+
+  def __init__(self,name,fpath):
+    self.name  = name;
+    self.fpath = fpath;
+
+  def regen(self):
+    if self.name in bpy.data.images:
+      return bpy.data.images[self.name];
+
+    # TODO: recreate image when missing
+    return None;
+
+# ---   *   ---   *   ---
+# wrapper class to rebuild
+# bpy node tree references
+
+class ShaderNodeTree_Bld:
+
+  def __init__(self,name):
+    self.name=name;
+
+  def regen(self):
+    if self.name in bpy.data.node_groups:
+      return bpy.data.node_groups[self.name];
+
+    # TODO: load and recreate when missing
+    return None;
+
+# ---   *   ---   *   ---
+# complex type to primitive
+
+def cplex_to_prim(value):
+
+  if isinstance(value,bpy_prop_array) \
+  or isinstance(value,Vector) \
+  or isinstance(value,Euler):
+    value=value[:];
+
+  elif isinstance(value,ShaderNodeTree):
+    value=ShaderNodeTree_Bld(value.name);
+
+  elif isinstance(value,Image):
+    value=Image_Bld(value.name,value.filepath);
+
+  return value;
+
+# ---   *   ---   *   ---
+# ^iv
+
+def prim_to_cplex(value):
+
+  if isinstance(value,Image_Bld) \
+  or isinstance(value,ShaderNodeTree_Bld):
+    value=value.regen();
+
+  return value;
 
 # ---   *   ---   *   ---
 # find in/out idex
@@ -115,7 +181,7 @@ def load_node(dst,d):
 
   # restore attrs
   for attr,value in d['values']['attrs'].items():
-    setattr(nd,attr,value);
+    setattr(nd,attr,prim_to_cplex(value));
 
   # restore unconnected inputs
   for i,input in enumerate(
@@ -124,9 +190,10 @@ def load_node(dst,d):
   ):
 
     if input != None:
-      nd.inputs[i].default_value=input;
+      nd.inputs[i].default_value= \
+        prim_to_cplex(input);
 
-  return nd; 
+  return nd;
 
 # ---   *   ---   *   ---
 # ^reconnects links
@@ -238,12 +305,10 @@ class DA_Node_Tree:
       if  not len(socket.links) \
       and hasattr(socket,'default_value'):
 
-        value=socket.default_value;
+        out['inputs'][-1]=cplex_to_prim(
+          socket.default_value
 
-        if isinstance(value,bpy_prop_array):
-          value=value[:];
-
-        out['inputs'][-1]=value;
+        );
 
     # ^non-input values
     for attr in scan_attrs(nd):
@@ -251,7 +316,10 @@ class DA_Node_Tree:
       if isro(nd,attr):
         continue;
 
-      out['attrs'][attr]=getattr(nd,attr);
+      out['attrs'][attr]=cplex_to_prim(
+        getattr(nd,attr)
+
+      );
 
     return out;
 
@@ -265,7 +333,7 @@ class DA_Node_Tree:
       'name'   : nd.name,
       'type'   : typeof_node(nd),
 
-      'loc'    : nd.location,
+      'loc'    : cplex_to_prim(nd.location),
       'width'  : nd.width,
 
       'links'  : self.get_node_links(nd),
@@ -283,6 +351,29 @@ class DA_Node_Tree:
       for nd in self.nt.nodes
 
     ];
+
+# ---   *   ---   *   ---
+# ^wrapper, saves to file
+
+  def pack(self,fpath):
+
+    stout=self.get_desc();
+
+    with open(fpath,'wb+') as f:
+      pickle.dump(stout,f);
+
+# ---   *   ---   *   ---
+# ^undo
+
+  @staticmethod
+  def unpack(fpath):
+
+    out=None;
+
+    with open(fpath,'rb') as f:
+      out=pickle.load(f);
+
+    return out;
 
 # ---   *   ---   *   ---
 # return array of nodetree for
@@ -345,7 +436,9 @@ def test():
   ob=bpy.context.object;
   ar=get_node_trees(ob);
 
-  d=ar[0].get_desc();
+  ar[0].pack('./nt_test');
+  d=DA_Node_Tree.unpack('./nt_test');
+
   load_tree(ar[1].nt,d);
 
 # ---   *   ---   *   ---
