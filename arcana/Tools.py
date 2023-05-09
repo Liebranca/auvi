@@ -38,7 +38,7 @@ def isro(o,attr):
 
   try:
     setattr(o,attr,v);
-    return 0;
+    return 0; 
 
   except AttributeError:
     return 1;

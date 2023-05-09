@@ -126,7 +126,7 @@ def load_node(dst,d):
     if input != None:
       nd.inputs[i].default_value=input;
 
-  return nd;
+  return nd; 
 
 # ---   *   ---   *   ---
 # ^reconnects links
