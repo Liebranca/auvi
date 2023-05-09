@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # ---   *   ---   *   ---
-# NT
-# Node tree walker
+# N3
+# Node tree!
 #
 # LIBRE SOFTWARE
 # Licensed under GNU GPL3
@@ -13,7 +13,7 @@
 # ---   *   ---   *   ---
 # deps
 
-import bpy,pickle;
+import bpy,pickle,os;
 
 from bpy.types import (
 
@@ -28,16 +28,24 @@ from bpy.types import (
 );
 
 from mathutils import Vector,Euler;
-from arcana.Tools import isro;
+
+from arcana import ARPATH;
+from arcana.Tools import (
+  isro,ns_path,chkdir,moo
+
+);
 
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.3b';
+VERSION = 'v0.00.4b';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
 # ROM
+
+CACHEPATH=ARPATH+'/.cache/auvi/node_tree/';
+EXT='.n3';
 
 SHD_ATTRS=[
 
@@ -61,21 +69,50 @@ SHD_ATTRS.extend(dir(ShaderNode));
 SHD_ATTRS={key:None for key in SHD_ATTRS};
 
 # ---   *   ---   *   ---
+# GBL
+
+Sesh_WT={};
+
+# ---   *   ---   *   ---
+# check if cached node tree needs updating
+
+def node_tree_updated(name):
+
+  key   = ns_path(name);
+  fpath = CACHEPATH+key+EXT;
+
+  return (
+
+  not (os.path.exists(fpath))
+
+  or  (name not in Sesh_WT)
+  or  (moo(fpath,bpy.data.filepath))
+
+  );
+
+# ---   *   ---   *   ---
 # wrapper class to rebuild
 # bpy image references
 
 class Image_Bld:
 
-  def __init__(self,name,fpath):
-    self.name  = name;
-    self.fpath = fpath;
+  def __init__(self,im):
+    self.name  = im.name;
+    self.fpath = im.filepath;
 
   def regen(self):
+
+    # get existing
     if self.name in bpy.data.images:
       return bpy.data.images[self.name];
 
-    # TODO: recreate image when missing
-    return None;
+    # recreate
+    im=bpy.data.images.new(self.name,8,8);
+
+    im.filepath = self.fpath;
+    im.source   = 'FILE';
+
+    return im;
 
 # ---   *   ---   *   ---
 # wrapper class to rebuild
@@ -83,15 +120,40 @@ class Image_Bld:
 
 class ShaderNodeTree_Bld:
 
-  def __init__(self,name):
-    self.name=name;
+  def __init__(self,g):
+    self.name=g.name;
+    self.to_cache(g);
 
   def regen(self):
+
+    # get existing
     if self.name in bpy.data.node_groups:
       return bpy.data.node_groups[self.name];
 
-    # TODO: load and recreate when missing
-    return None;
+    # recreate
+    return self.from_cache();
+
+# ---   *   ---   *   ---
+# saves node group to cache
+
+  def to_cache(self,g):
+    DA_Node_Tree(self.name,g).pack();
+
+# ---   *   ---   *   ---
+# ^iv
+
+  def from_cache(self):
+
+    # make ice
+    g   = bpy.data.node_groups.new(self.name)
+
+    # retrieve
+    key = ns_path(self.name);
+    d   = DA_Node_Tree.unpack(CACHEPATH+key);
+
+    load_tree(g,d);
+
+    return g;
 
 # ---   *   ---   *   ---
 # complex type to primitive
@@ -104,10 +166,10 @@ def cplex_to_prim(value):
     value=value[:];
 
   elif isinstance(value,ShaderNodeTree):
-    value=ShaderNodeTree_Bld(value.name);
+    value=ShaderNodeTree_Bld(value);
 
   elif isinstance(value,Image):
-    value=Image_Bld(value.name,value.filepath);
+    value=Image_Bld(value);
 
   return value;
 
@@ -232,8 +294,11 @@ def load_tree(dst,ar):
 
 class DA_Node_Tree:
 
-  def __init__(self,nt):
-    self.nt=nt;
+  def __init__(self,name,nt):
+
+    self.name = name;
+    self.nt   = nt;
+
     self.mkftab();
 
 # ---   *   ---   *   ---
@@ -355,22 +420,27 @@ class DA_Node_Tree:
 # ---   *   ---   *   ---
 # ^wrapper, saves to file
 
-  def pack(self,fpath):
+  def pack(self):
 
+    if not node_tree_updated(self.name):
+      return;
+
+    fpath=chkdir(CACHEPATH,self.name);
     stout=self.get_desc();
 
-    with open(fpath,'wb+') as f:
+    with open(fpath+EXT,'wb+') as f:
       pickle.dump(stout,f);
 
 # ---   *   ---   *   ---
 # ^undo
 
   @staticmethod
-  def unpack(fpath):
+  def unpack(name):
 
-    out=None;
+    out   = None;
+    fpath = CACHEPATH+ns_path(name);
 
-    with open(fpath,'rb') as f:
+    with open(fpath+EXT,'rb') as f:
       out=pickle.load(f);
 
     return out;
@@ -393,7 +463,7 @@ def get_node_trees(ob):
 
     return [
 
-      DA_Node_Tree(mat.node_tree)
+      DA_Node_Tree(mat.name,mat.node_tree)
       for mat in mats if mat
 
     ];
@@ -436,8 +506,8 @@ def test():
   ob=bpy.context.object;
   ar=get_node_trees(ob);
 
-  ar[0].pack('./nt_test');
-  d=DA_Node_Tree.unpack('./nt_test');
+  ar[0].pack();
+  d=DA_Node_Tree.unpack(ar[0].name);
 
   load_tree(ar[1].nt,d);
 
