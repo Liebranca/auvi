@@ -18,6 +18,12 @@ from .Char import get_anim_list;
 from arcana.Xfer import ARPATH,DOS;
 
 # ---   *   ---   *   ---
+# info
+
+VERSION = 'v0.01.0a';
+AUTHOR  = 'IBN-3DILA';
+
+# ---   *   ---   *   ---
 # remembers your config
 
 def save_settings():

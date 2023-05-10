@@ -20,6 +20,7 @@ from bpy.types import(
 
   Object,
   Mesh,
+  Material,
   Action,
   Armature,
 

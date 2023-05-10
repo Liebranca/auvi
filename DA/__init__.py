@@ -18,21 +18,23 @@ import bpy;
 from importlib import reload;
 from arcana import Mod;
 
-from .iface import Apparel;
-from .iface import Attach;
-from .iface import State;
-from .iface import Char;
-from .iface import Anim;
-from .iface import Spritebake;
+from .iface import (
 
-from .iface import CRK;
+  Apparel,Attach,
+  State,Char,Anim,
 
-from .guts import NT;
+  Spritebake,Matbake,
+
+  CRK,
+
+);
+
+from .guts import N3;
 
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.4a';
+VERSION = 'v0.00.5a';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
@@ -52,7 +54,10 @@ def update():
 
     Apparel,Attach,
     State,Char,Anim,
-    Spritebake,CRK,
+
+    Spritebake,Matbake,
+
+    CRK,
 
   ]:
 
@@ -61,7 +66,7 @@ def update():
 
   # ^reload common modules
   for mod in [
-    NT,
+    N3
 
   ]:
 
