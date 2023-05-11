@@ -103,7 +103,7 @@ class DA_CRK_Panel(Panel):
     row=layout.row();
     row.operator(
       'darkage.crk_run',
-      text='',
+      text='BAKE',
       icon='SPHERE'
 
     );

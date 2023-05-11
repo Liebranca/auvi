@@ -18,6 +18,9 @@ import bpy;
 from importlib import reload;
 from arcana import Mod;
 
+from .guts import N3;
+from .guts import Matbake as Matbake_guts;
+
 from .iface import (
 
   Apparel,Attach,
@@ -28,8 +31,6 @@ from .iface import (
   CRK,
 
 );
-
-from .guts import N3;
 
 # ---   *   ---   *   ---
 # info
@@ -66,7 +67,7 @@ def update():
 
   # ^reload common modules
   for mod in [
-    N3
+    N3,Matbake_guts
 
   ]:
 

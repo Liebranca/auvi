@@ -14,11 +14,14 @@
 # deps
 
 from .Meta import *;
+from ..guts import Matbake as guts;
+
+from arcana import ARPATH;
 
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.1b';
+VERSION = 'v0.00.2b';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
@@ -44,9 +47,26 @@ class DA_Material(PropertyGroup):
 
   fpath: StringProperty(
     description = "Path to output directory",
-    default     = '/tmp/',
+    default     = ARPATH+'/.cache/auvi/material/',
 
   );
+
+# ---   *   ---   *   ---
+
+class DA_OT_Matbake_Run(Operator):
+
+  bl_idname      = "darkage.matbake_run";
+  bl_label       = "Bake material to JOJ";
+
+  bl_description = \
+    "Packs material layers into JOJ file";
+
+  def execute(self,C):
+
+    ob=C.active_object;
+    guts.run(ob);
+
+    return {'FINISHED'};
 
 # ---   *   ---   *   ---
 
@@ -81,7 +101,7 @@ class DA_Material_Panel(Panel):
     layout = self.layout;
 
     ob     = context.active_object;
-    mat    = ob.active_material.da_material
+    mat    = ob.da_material
 
 # ---   *   ---   *   ---
 
@@ -91,6 +111,15 @@ class DA_Material_Panel(Panel):
     row=layout.row();
     row.prop(mat,"render_sz",text='');
 
+    row=layout.row();
+    row.operator(
+      'darkage.matbake_run',
+
+      text='BAKE',
+      icon='MATERIAL'
+
+    );
+
 # ---   *   ---   *   ---
 
 def register():
@@ -98,18 +127,20 @@ def register():
   bpy.da_blocks[__file__]=unregister;
 
   register_class(DA_Material);
+  register_class(DA_OT_Matbake_Run);
   register_class(DA_Material_Panel);
 
-  Material.da_material=PointerProperty(
+  Object.da_material=PointerProperty(
     type=DA_Material
 
   );
 
 def unregister():
 
-  del Material.da_material;
+  del Object.da_material;
 
   unregister_class(DA_Material);
+  unregister_class(DA_OT_Matbake_Run);
   unregister_class(DA_Material_Panel);
 
 # ---   *   ---   *   ---
