@@ -17,16 +17,237 @@ from .Meta import *;
 from ..guts import Matbake as guts;
 
 from arcana import ARPATH;
+from arcana.Tools import bl_list2enum;
 
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.2b';
+VERSION = 'v0.00.3b';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
+# ROM
+
+MAPPING_TYPES=[
+
+  'Generated',
+  'Normal',
+  'UV',
+
+];
+
+PROJECTION_TYPES=[
+  'BOX',
+  'FLAT',
+
+];
+
+# ---   *   ---   *   ---
+# get blender material
+# assoc with DA_Material
+
+def get_material(self,ob):
+
+  mb  = ob.da_matbake;
+  i   = mb.materials[:].index(self);
+
+  mat = ob.material_slots[i].material;
+
+  return mat;
+
+# ---   *   ---   *   ---
+# get material node tree
+# assoc with selected DA_Material
+
+def get_matnodes(self,ob):
+
+  mat = get_material(self,ob);
+  nt  = mat.node_tree;
+
+  return nt;
+
+# ---   *   ---   *   ---
+# syncs material to image
+
+def on_set_matim(self,C):
+
+  mat = get_material(self,C.object);
+  nt  = mat.node_tree;
+
+  if self.im!=None:
+    self.name=mat.name=self.im.name;
+
+  else:
+    self.name=mat.name='non';
+
+  nt.nodes['TEXTURE'].image=self.im;
+
+def set_texture_mapping(self,C):
+
+  nt  = get_matnodes(self,C.object);
+  src = nt.nodes['TEXCOORDS'];
+  dst = nt.nodes['MAPPING'];
+
+  key = 'UV' \
+    if self.mapping == 'UV' \
+    else self.mapping.capitalize();
+
+  nt.links.new(
+    src.outputs[key],
+    dst.inputs['Vector']
+
+  );
+
+# ---   *   ---   *   ---
+# wrap for material slot
 
 class DA_Material(PropertyGroup):
+
+  name: StringProperty(default='non');
+
+  src: PointerProperty(type=Material);
+
+  im: PointerProperty(
+
+    name        = 'Source',
+    description = \
+      'Image used to generate texture maps',
+
+    type        = Image,
+    update      = on_set_matim,
+
+  );
+
+  mapping: EnumProperty(
+
+    name        = 'Mapping',
+
+    description = \
+      "Vector source for mapping node",
+
+    items       = bl_list2enum(MAPPING_TYPES),
+    default     = 'UV',
+
+    update      = set_texture_mapping,
+
+  );
+
+  projection: EnumProperty(
+
+    name        = 'Projection',
+
+    description = \
+      "Projection method used for image",
+
+    items       = bl_list2enum(PROJECTION_TYPES),
+    default     = 'FLAT',
+
+  );
+
+  boxblend: FloatProperty(
+
+    name        = 'Blend',
+
+    description = \
+      "Texture blending for box projection",
+
+    default     = 0.65,
+    max         = 1.0,
+    min         = 0.0,
+
+  );
+
+# ---   *   ---   *   ---
+# makes editable prop field
+# for a node input
+
+def draw_node_input(nd,name,layout):
+
+  layout.label(text=name);
+  layout.prop(
+    nd.inputs[name],
+    'default_value',
+
+    text='',
+
+  );
+
+# ---   *   ---   *   ---
+
+def draw_matbox(self,ob,layout):
+
+  nt=get_matnodes(self,ob);
+
+  row=layout.row();
+  row.label(text='TEXTURE SETTINGS');
+
+  layout.row();
+
+  nd=nt.nodes['TEXTURE'];
+
+  row=layout.row();
+  row.prop(self,'mapping');
+
+  row=layout.row();
+  row.prop(nd,'projection');
+
+  if nd.projection == 'BOX':
+    row=layout.row();
+    row.label(text='Blend');
+    row.prop(nd,'projection_blend',text='');
+
+# ---   *   ---   *   ---
+
+  layout.separator();
+
+  row=layout.row();
+  row.label(text='MATERIAL SETTINGS');
+
+  layout.row();
+
+  nd=nt.nodes['MATBAKE'];
+
+  row=layout.row();
+  draw_node_input(nd,"BumpStr",row);
+
+  layout.row();
+
+  row=layout.row();
+  draw_node_input(nd,"RoughTight",row);
+
+  row=layout.row();
+  draw_node_input(nd,"RoughBase",row);
+
+  layout.row();
+
+  row=layout.row();
+  draw_node_input(nd,"CurvDetail",row);
+
+  row=layout.row();
+  draw_node_input(nd,"CurvEdge",row);
+
+  layout.row();
+
+  row=layout.row();
+  draw_node_input(nd,"EmitColor",row);
+
+  row=layout.row();
+  draw_node_input(nd,"EmitTolerance",row);
+
+  layout.row();
+
+  row=layout.row();
+  draw_node_input(nd,"MetalColor",row);
+
+  row=layout.row();
+  draw_node_input(nd,"MetalTolerance",row);
+
+# ---   *   ---   *   ---
+# wrap multiple materials
+# on single object
+
+register_class(DA_Material);
+class DA_Material_Bake(PropertyGroup):
 
   render_sz: IntProperty(
     name        = 'Bake size',
@@ -39,17 +260,148 @@ class DA_Material(PropertyGroup):
 
   );
 
-  name: StringProperty(
-    description = "Name of material",
-    default     = 'MT_0000',
-
-  );
-
   fpath: StringProperty(
     description = "Path to output directory",
     default     = ARPATH+'/.cache/auvi/material/',
 
   );
+
+  materials: CollectionProperty(
+    type=DA_Material
+
+  );
+
+  material_i: IntProperty(default=0);
+
+# ---   *   ---   *   ---
+
+class DA_UL_Material(UIList):
+
+  def draw_item(
+    self,C,layout,
+
+    ob,slot,icon,
+
+    active_data,
+    active_propname
+
+  ):
+
+    layout.prop(slot,'im');
+
+# ---   *   ---   *   ---
+# further GENIUS additions
+
+class DA_OT_Material_Add(Operator):
+
+  bl_idname      = "darkage.material_add";
+  bl_label       = "Add a new material";
+
+  bl_description = \
+    "Adds a new DarkAge material to object";
+
+  def execute(self,C):
+
+    ob = C.object;
+    mb = ob.da_matbake;
+
+    x  = mb.materials.add();
+
+    material_nit(x,C);
+
+    return {'FINISHED'};
+
+# ---   *   ---   *   ---
+
+class DA_OT_Material_Remove(Operator):
+
+  bl_idname      = "darkage.material_remove";
+  bl_label       = "Destroy selected material";
+
+  bl_description = \
+    "Remove selected material from object";
+
+  def execute(self,C):
+
+    ob = C.object;
+    mb = ob.da_matbake;
+
+    i  = mb.material_i;
+
+    mb.materials.remove(i);
+
+    return {'FINISHED'};
+
+# ---   *   ---   *   ---
+
+class DA_OT_Material_Goup(Operator):
+
+  bl_idname      = "darkage.material_goup";
+  bl_label       = "Move material up";
+  bl_description = "Move material up";
+
+  def execute(self,C):
+
+    ob = C.object;
+    mb = ob.da_matbake;
+
+    i  = mb.material_i;
+
+    if(i>0):
+
+      bpy.ops.object.material_slot_move(
+        direction='DOWN'
+
+      );
+
+      wap(mb.materials,i,i-1);
+      mb.material_i-=1;
+
+    return {'FINISHED'};
+
+# ---   *   ---   *   ---
+
+class DA_OT_Material_Godown(Operator):
+
+  bl_idname      = "darkage.material_godown";
+  bl_label       = "Move material down";
+  bl_description = "Move material down";
+
+  def execute(self,C):
+
+    ob = C.object;
+    mb = ob.da_matbake;
+
+    i  = mb.material_i;
+
+    if(i<len(mb.materials)-1):
+
+      bpy.ops.object.material_slot_move(
+        direction='UP'
+
+      );
+
+      wap(mb.materials,i,i+1);
+      mb.material_i+=1;
+
+    return {'FINISHED'};
+
+# ---   *   ---   *   ---
+# swap one material for another
+
+def wap(materials,dst_i,src_i):
+  pass;
+
+# ---   *   ---   *   ---
+# syncs da_matbake.materials
+# to material_slots of object
+
+def matsync(ob):
+
+  mats=[slot.mat for slot in ob.material_slots];
+
+  for mat in mats:
+    pass;
 
 # ---   *   ---   *   ---
 
@@ -88,9 +440,7 @@ class DA_Material_Panel(Panel):
 
     return (
         ob!=None
-
     and isinstance(ob.data,Mesh)
-    and ob.active_material!=None
 
     );
 
@@ -100,16 +450,16 @@ class DA_Material_Panel(Panel):
 
     layout = self.layout;
 
-    ob     = context.active_object;
-    mat    = ob.da_material
+    ob = context.active_object;
+    mb = ob.da_matbake;
 
 # ---   *   ---   *   ---
 
     row=layout.row();
-    row.prop(mat,"fpath");
+    row.prop(mb,"fpath");
 
     row=layout.row();
-    row.prop(mat,"render_sz",text='');
+    row.prop(mb,"render_sz",text='');
 
     row=layout.row();
     row.operator(
@@ -120,27 +470,102 @@ class DA_Material_Panel(Panel):
 
     );
 
+    row=layout.row();
+    row.separator();
+
+# ---   *   ---   *   ---
+
+    row=layout.row();
+
+    row.template_list(
+      'DA_UL_Material','',
+
+      mb,'materials',
+      mb,'material_i',
+
+    );
+
+    col=row.column();
+
+    col.operator(
+      'darkage.material_add',
+      text='',
+      icon='ADD'
+
+    );
+
+    col.operator(
+      'darkage.material_remove',
+      text='',
+      icon='REMOVE'
+
+    );
+
+    col.operator(
+      'darkage.material_goup',
+      text='',
+      icon='TRIA_UP'
+
+    );
+
+    col.operator(
+      'darkage.material_godown',
+      text='',
+      icon='TRIA_DOWN'
+
+    );
+
+    layout.separator();
+
+    if len(mb.materials):
+
+      box=layout.box();
+      box.row();
+
+      draw_matbox(
+        mb.materials[mb.material_i],
+        ob,box
+
+      );
+
 # ---   *   ---   *   ---
 
 def register():
 
   bpy.da_blocks[__file__]=unregister;
 
-  register_class(DA_Material);
+  register_class(DA_Material_Bake);
   register_class(DA_OT_Matbake_Run);
+
+  register_class(DA_UL_Material);
+
+  register_class(DA_OT_Material_Add);
+  register_class(DA_OT_Material_Remove);
+  register_class(DA_OT_Material_Godown);
+  register_class(DA_OT_Material_Goup);
+
   register_class(DA_Material_Panel);
 
-  Object.da_material=PointerProperty(
-    type=DA_Material
+  Object.da_matbake=PointerProperty(
+    type=DA_Material_Bake
 
   );
 
 def unregister():
 
-  del Object.da_material;
+  del Object.da_matbake;
 
-  unregister_class(DA_Material);
+  unregister_class(DA_Material_Bake);
   unregister_class(DA_OT_Matbake_Run);
   unregister_class(DA_Material_Panel);
+
+  unregister_class(DA_UL_Material);
+
+  unregister_class(DA_OT_Material_Add);
+  unregister_class(DA_OT_Material_Remove);
+  unregister_class(DA_OT_Material_Godown);
+  unregister_class(DA_OT_Material_Goup);
+
+  unregister_class(DA_Material);
 
 # ---   *   ---   *   ---

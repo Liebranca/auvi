@@ -15,12 +15,20 @@
 # deps
 
 import bpy;
+
+from bpy.types import (
+
+  ShaderNodeTexImage,
+  ShaderNodeGroup,
+
+);
+
 from arcana.Tools import ns_path,chkdir;
 
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.1b';
+VERSION = 'v0.00.3b';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
@@ -108,7 +116,7 @@ BAKE_TYPES={
   'A'    : ['Albedo','Alpha'],
   'NC'   : ['NormalBake','Curv'],
 
-  'ORME' : ['AO','Roughness','Metal','Emit'],
+  'ORME' : ['ORM','E',],
 
 };
 
@@ -116,18 +124,12 @@ BAKE_TYPES={
 # match node output to
 # file extension
 
-LAYER_EXT={
+IMAGE_EXT={
 
-  'Albedo'      : '_a0.png',
-  'Alpha'       : '_a1.png',
+  'A'    : '_a.png',
+  'NC'   : '_n.png',
 
-  'NormalBake'  : '_n0.png',
-  'Curv'        : '_n1.png',
-
-  'AO'          : '_o0.png',
-  'Roughness'   : '_o1.png',
-  'Metal'       : '_o2.png',
-  'Emit'        : '_o3.png',
+  'ORME' : '_o.png',
 
 };
 
@@ -152,31 +154,54 @@ def set_render_settings(o):
     exec('bpy.context.scene.'+key+'=value');
 
 # ---   *   ---   *   ---
-# get node holding image being
-# baked to
-#
-# also configs im to match
-# output settings
+# selfex
 
-def get_output_node(ob):
+def deselect_node(nd):
+  nd.select=False;
+
+def select_node(nd):
+  nd.select=True;
+
+def set_active_node(nt,nd):
+  for node in nt.nodes:
+    deselect_node(node);
+
+  select_node(nd);
+  nt.nodes.active=nd;
+
+# ---   *   ---   *   ---
+# sync output images to
+# da_matbake props
+
+def set_output_settings(ob):
 
   mat = ob.material_slots[0].material;
+  sz  = 2**ob.da_matbake.render_sz;
 
-  nd  = mat.node_tree.nodes["BAKETO"];
-  im  = nd.image;
+  for key in ['ALPHA','COLOR']:
 
-  sz  = 2**ob.da_material.render_sz;
+    nd=mat.node_tree.nodes["BAKETO_"+key];
+    im=nd.image;
 
-  im.file_format      = 'PNG';
+    im.file_format      = 'PNG';
 
-  im.source           = 'GENERATED';
-  im.generated_width  = sz;
-  im.generated_height = sz;
+    im.source           = 'GENERATED';
+    im.generated_width  = sz;
+    im.generated_height = sz;
 
   RENDER_SETTINGS[
     'render.bake.margin'
 
   ]=sz>>5;
+
+# ---   *   ---   *   ---
+# get node holding image being
+# baked to
+
+def get_output_node(ob,mode='COLOR'):
+
+  mat = ob.material_slots[0].material;
+  im  = mat.node_tree.nodes["BAKETO_"+mode];
 
   return im;
 
@@ -184,16 +209,19 @@ def get_output_node(ob):
 # connects matbake output
 # to material output surface
 
-def setout(ob,key):
+def setout(ob,key,alpha):
 
   mats=[slot.material for slot in ob.material_slots];
+  mode='ALPHA' if alpha else 'COLOR';
 
   for mat in mats:
 
     nt   = mat.node_tree;
 
-    bake = nt.nodes['Matbake'];
-    out  = nt.nodes['Material Output'];
+    bake = nt.nodes['MATBAKE'];
+    out  = nt.nodes['OUTPUT'];
+
+    im   = nt.nodes['BAKETO_'+mode];
 
     nt.links.new(
       bake.outputs[key],
@@ -201,11 +229,13 @@ def setout(ob,key):
 
     );
 
+    set_active_node(nt,im);
+
 # ---   *   ---   *   ---
 # render single output
 # of matbake node
 
-def bake_layer(ob,key):
+def bake_layer(ob,key,alpha):
 
   bake_t='';
 
@@ -215,14 +245,16 @@ def bake_layer(ob,key):
   else:
     bake_t='COMBINED';
 
-  setout(ob,key);
+  setout(ob,key,alpha);
   bpy.ops.object.bake(type=bake_t);
 
 # ---   *   ---   *   ---
 # ^multiple layers of
 # a packed texture
 
-def bake_image(ob,t,im,fpath):
+def bake_image(ob,t,fpath):
+
+  mode=False;
 
   # spit step
   print(f"\\-->{t}");
@@ -232,33 +264,104 @@ def bake_image(ob,t,im,fpath):
     # spit step
     print(f".  \\-->{key}");
 
-    bake_layer(ob,key);
+    bake_layer(ob,key,mode);
+    mode=True;
 
-    im.save(
-      filepath = fpath+LAYER_EXT[key],
-      quality  = 100
-
-    );
+  combine_layers(ob,t,fpath);
 
 # ---   *   ---   *   ---
-# ^bakes all images
+# ^puts the two bakes together
+
+def combine_layers(ob,t,fpath):
+
+  color=get_output_node(ob,'COLOR');
+  alpha=get_output_node(ob,'ALPHA');
+
+  a=list(color.image.pixels);
+  b=list(alpha.image.pixels);
+
+  a[3::4]=b[0::4];
+
+  color.image.pixels[:]=a[:];
+
+  color.image.save(
+    filepath = fpath+IMAGE_EXT[t],
+    quality  = 100
+
+  );
+
+# ---   *   ---   *   ---
+# checks for correct structure
+# in material node trees
+
+# TODO: full validation!
+#       this is placeholder at best
+
+def validate_input(ob):
+
+  out  = True;
+  mats = [
+
+    slot.material
+    for slot in ob.material_slots
+
+  ];
+
+#  for mat in mats:
+#
+#    nt=mat.node_tree;
+#    for name,type in {
+#      'MATBAKE': NodeShaderGroup,
+#      'TEXTURE': NodeShaderTexImage,
+#
+#    }.items():
+#      out=node_type_name_chk(name,type)
+#      if not out: break;
+#
+#    if not out: break;
+
+  return out;
+
+# ---   *   ---   *   ---
+# node of given name and type exists
+# within node tree
+
+def node_type_name_chk(nodes,name,type):
+
+  return (
+      name in nodes
+  and isintance(nodes[name],type)
+
+  );
+
+# ---   *   ---   *   ---
+# recreates correct node structure
+
+def n3_regen(ob):
+  pass;
+
+# ---   *   ---   *   ---
+# bakes all images
 
 def run(ob):
 
-  # get output data
-  im    = get_output_node(ob);
-  fpath = chkdir(ob.da_material.fpath,ob.name);
+  if not validate_input(ob):
+    n3_regen(ob);
+
+  # get output path
+  fpath = chkdir(ob.da_matbake.fpath,ob.name);
 
   # swap config
   old=get_render_settings();
   set_render_settings(RENDER_SETTINGS);
+  set_output_settings(ob);
 
   # spit beg
   print('MATBAKE');
 
   # run baking for each layer
   for t in BAKE_TYPES.keys():
-    bake_image(ob,t,im,fpath);
+    bake_image(ob,t,fpath);
 
   # spit end
   print("\nRET\n");

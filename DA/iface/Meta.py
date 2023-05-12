@@ -24,6 +24,8 @@ from bpy.types import(
   Action,
   Armature,
 
+  Image,
+
   PropertyGroup,
 
   Panel,

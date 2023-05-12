@@ -149,7 +149,7 @@ class ShaderNodeTree_Bld:
 
     # retrieve
     key = ns_path(self.name);
-    d   = DA_Node_Tree.unpack(CACHEPATH+key);
+    d   = DA_Node_Tree.unpack(key);
 
     load_tree(g,d);
 
@@ -281,10 +281,11 @@ def load_node_links(dst,nd,d):
 
 def load_tree(dst,ar):
 
-  # first create all nodes
+  # recreate all nodes
+  dst.nodes.clear();
   nodes=[load_node(dst,d) for d in ar];
 
-  # then remake links
+  # ^remake links
   for i,nd in enumerate(nodes):
     load_node_links(dst,nd,ar[i]);
 
@@ -499,16 +500,14 @@ def ob_has_matslots(ob):
   return out;
 
 # ---   *   ---   *   ---
-# selfex entry point
+# saves material node tree to disk
 
-def test():
+def save_material(mat):
+  n3=DA_Node_Tree(mat.name,mat.node_tree);
+  n3.pack();
 
-  ob=bpy.context.object;
-  ar=get_node_trees(ob);
-
-  ar[0].pack();
-  d=DA_Node_Tree.unpack(ar[0].name);
-
-  load_tree(ar[1].nt,d);
+def load_material(dst,src):
+  ar=DA_Node_Tree.unpack(src);
+  load_tree(dst.node_tree,ar);
 
 # ---   *   ---   *   ---

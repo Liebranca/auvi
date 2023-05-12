@@ -23,6 +23,8 @@ from .guts import Matbake as Matbake_guts;
 
 from .iface import (
 
+  Meta,
+
   Apparel,Attach,
   State,Char,Anim,
 
@@ -48,6 +50,8 @@ def update():
   if(hasattr(bpy,'da_blocks')):
     for key in bpy.da_blocks:
       bpy.da_blocks[key]();
+
+  reload(Meta);
 
   # ^re-register
   bpy.da_blocks={};
