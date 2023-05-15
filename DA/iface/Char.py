@@ -482,7 +482,7 @@ def set_anim(self,C):
 
   chnames=[ch.name for ch in ob.children];
 
-  for slot in Attach.SLOTS:
+  for slot in Attach.XN_SLOTS:
 
     piece=eval('self.'+slot);
 
@@ -608,7 +608,7 @@ class DA_Char_BL(PropertyGroup):
 
 # ---   *   ---   *   ---
 
-class DA_UL_Test(UIList):
+class DA_UL_States(UIList):
 
   # the number of args here is a clear
   # testament to your incompetence
@@ -659,7 +659,7 @@ class DA_State_Panel(Panel):
     row=layout.row();
 
     row.template_list(
-      'DA_UL_Test','',
+      'DA_UL_States','',
 
       char,'states',
       char,'state_i',
@@ -700,7 +700,8 @@ class DA_State_Panel(Panel):
     box=layout.box();
     box.row();
 
-    State.draw(char.states[char.state_i],box);
+    if char.state_i < len(char.states):
+      State.draw(char.states[char.state_i],box);
 
 # ---   *   ---   *   ---
 
@@ -781,7 +782,7 @@ def register():
 
   bpy.da_blocks[__file__]=unregister;
 
-  register_class(DA_UL_Test);
+  register_class(DA_UL_States);
 
   register_class(DA_Char_BL);
   register_class(DA_Char_Panel);
@@ -800,7 +801,7 @@ def unregister():
   unregister_class(DA_Char_Panel);
   unregister_class(DA_State_Panel);
 
-  unregister_class(DA_UL_Test);
+  unregister_class(DA_UL_States);
 
 # ---   *   ---   *   ---
 

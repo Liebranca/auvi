@@ -69,6 +69,8 @@ def shape_copy(data,src):
   path  = 'bpy.data.objects["'+src.name+'"]';
   shape = 'shape_keys.key_blocks';
 
+  print(src.name);
+
   me    = src.data;
 
   for key in me.shape_keys.key_blocks:
@@ -88,30 +90,65 @@ def shape_copy(data,src):
     item.value = str(eval(item.path));
 
 # ---   *   ---   *   ---
+# for mixing base skin and attach
+# functionality
+#
+# essentially: lets you use shape
+# modifiers on base skin as we do
+# for attachments themselves
+
+def skin_as_piece(slot,piece,equip,ob):
+
+  if piece==None:
+    return None;
+
+  elif slot == 'skin':
+
+    equip=[
+      o.name for o in ob.children
+      if o.data and o.data.name == piece.name
+
+    ];
+
+    if not len(equip):
+      return None;
+
+    equip=equip[0];
+
+  return equip;
+
+# ---   *   ---   *   ---
 
 def state_nit(self,C):
 
   ob   = C.object;
   char = ob.data.da_char;
 
-  for slot in Attach.SLOTS:
+  for slot in Attach.XN_SLOTS:
     piece   = eval('char.'+slot);
     equip   = 'BP_Equip::'+slot;
     mount   = equip+'_mount';
 
     chnames = [ch.name for ch in ob.children];
+    equip   = skin_as_piece(
+      slot,piece,equip,ob
 
-    if(piece==None):
+    );
+
+    if equip==None:
       continue;
 
-    if(piece.shape_keys):
-      shape_copy(
-        self.data,
-        ob.children[chnames.index(equip)]
+# ---   *   ---   *   ---
 
-      );
+    if piece.shape_keys:
 
-    if(mount in chnames):
+      equip= \
+        ob.children[chnames.index(equip)] \
+        if equip in chnames else equip;
+
+      shape_copy(self.data,equip);
+
+    if mount in chnames:
       shape_copy(
         self.data,
         ob.children[chnames.index(mount)]

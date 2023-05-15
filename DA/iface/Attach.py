@@ -26,6 +26,11 @@ D_SLOTS={
 };
 
 SLOTS=D_SLOTS.keys();
+
+# attachments+[base meshes]
+XN_SLOTS=list(SLOTS);
+XN_SLOTS.append('skin');
+
 D_SLOTS={
 
   key.upper():value

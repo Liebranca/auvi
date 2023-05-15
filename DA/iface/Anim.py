@@ -328,11 +328,11 @@ class DA_Anim_Panel(Panel):
     char    = ob.data.da_char;
     chnames = [ch.name for ch in ob.children];
 
-    for slot in Attach.SLOTS:
+    for slot in Attach.XN_SLOTS:
       piece = eval('char.'+slot);
       equip = 'BP_Equip::'+slot+'_mount';
 
-      if(piece==None):
+      if piece==None:
         continue;
 
       shapes=piece.shape_keys.key_blocks;
