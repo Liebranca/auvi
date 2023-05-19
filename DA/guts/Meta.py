@@ -14,6 +14,7 @@
 # deps
 
 import bmesh,bpy;
+import numpy as np;
 
 # ---   *   ---   *   ---
 # scene manipulation
@@ -46,18 +47,17 @@ def get_active():
 # ---   *   ---   *   ---
 # ^bat
 
-def select_all(ob,merge):
+def select_all(ob,selection=[]):
 
   bpy.ops.object.select_all(
     action='DESELECT'
 
   );
 
+  for child in selection:
+    select(child);
+
   select(ob);
-
-  for piece in merge:
-    select(piece);
-
   make_active(ob);
 
 # ---   *   ---   *   ---
@@ -148,7 +148,7 @@ def bmesh_load(dst,src):
 # ---   *   ---   *   ---
 # bakes object mesh
 
-def meshbake(ob,make_triangles):
+def meshbake(ob,mktris):
 
   apply_keys(ob);
   apply_mods(ob);
@@ -160,7 +160,7 @@ def meshbake(ob,make_triangles):
 
   );
 
-  if make_triangles:
+  if mktris:
     bmesh.ops.triangulate(bm,faces=bm.faces);
 
   bm.to_mesh(ob.data);
@@ -186,14 +186,14 @@ def duplicate(ob,xt="CRK"):
 # duplicates and bakes deforms
 # for an entire selection
 
-def duplibake(merge=False):
+def duplibake(merge=False,mktris=False):
 
   out   = None;
   clear = [];
 
   bpy.ops.object.duplicate();
   for dupli in get_selected():
-    meshbake(dupli,True);
+    meshbake(dupli,mktris);
     clear.append(dupli.data);
 
   if merge:
@@ -224,5 +224,102 @@ def force_shapes(ob):
     ob.shape_key_add(name='Basis');
 
   ob.data.shape_keys.use_relative=True;
+
+# ---   *   ---   *   ---
+# fills out shapekey from array
+# of vcords
+
+def make_shape(dst,src,pose_name):
+
+  shape=dst.shape_key_add(
+    name=pose_name
+
+  );
+
+  if is instance(src,list):
+    shape_from_flat(shape,src);
+
+  else:
+    shape_from_verts(shape,src.vertices);
+
+# ---   *   ---   *   ---
+# variations on copying
+# vcords to shapekey
+
+def shape_from_flat(dst,src):
+  verts   = np.array(src[:]);
+  indices = [i for i in range(len(verts))];
+
+  vflat_shape_set(verts,indices,dst);
+
+def shape_from_verts(dst,src);
+  verts   = np.array(src[:]);
+  indices = [i for i in range(len(verts))];
+
+  vvert_shape_set(verts,indices,dst);
+
+# ---   *   ---   *   ---
+# ^only difference is access
+
+def flat_shape_set(src,vi,dst):
+  dst.data[vi].co[:]=src[:];
+
+def vert_shape_set(src,vi,dst):
+  dst.data[vi].co[:]=src.co[:];
+
+# ---   *   ---   *   ---
+# ^saves me typing the loops
+# *might* also speed it up a bit
+
+vflat_shape_set=np.vectorize(
+  flat_shape_set
+
+);
+
+vvert_shape_set=np.vectorize(
+  vert_shape_set
+
+);
+
+# ---   *   ---   *   ---
+# keyframes display of Nth pose
+
+def make_shape_anim(ob,idex):
+
+  shapes     = ob.data.shape_keys;
+  curr_block = shapes.key_blocks[idex];
+
+  # 0th shape is always basis
+  # thus, offset by one
+  idex+=1;
+
+  # first pose after basis
+  if idex==1:
+    next_block=shapes.key_blocks[idex+1];
+    prev_block=shapes.key_blocks[-1];
+
+  # ^last one
+  elif idex == len(shapes.key_blocks)-1:
+    next_block=shapes.key_blocks[1];
+    prev_block=shapes.key_blocks[idex-1];
+
+  # ^in between
+  else:
+    next_block=shapes.key_blocks[idex+1];
+    prev_block=shapes.key_blocks[idex-1];
+
+  # only curr displays
+  # if curr &&! (prev|next)
+  curr_block.value=1;
+  next_block.value=0;
+  prev_block.value=0;
+
+  # undo offset
+  idex-=1;
+
+  # assign values
+  curr_block.keyframe_insert("value",frame=idex);
+  next_block.keyframe_insert("value",frame=idex);
+  prev_block.keyframe_insert("value",frame=idex);
 
 # ---   *   ---   *   ---

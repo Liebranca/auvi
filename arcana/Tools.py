@@ -58,6 +58,34 @@ def ns_path(s):
   return s.replace('::','/');
 
 # ---   *   ---   *   ---
+# gives filename of fpath
+
+def basef(s):
+  return s.split('/')[-1];
+
+# ---   *   ---   *   ---
+# gives first directory in fpath
+
+def based(s):
+  l=s.split('/')[0::-1];
+
+  if len(l) > 1:
+    return l[-1];;
+
+  else:
+    return '';
+
+# ---   *   ---   *   ---
+# gives filename without extension
+
+def nxbasef(s):
+
+  s=basef(s);
+  l=s.split('.');
+
+  return '.'.join(l[0::-1]))
+
+# ---   *   ---   *   ---
 # gives base of fpath
 # ie, fpath without filename
 

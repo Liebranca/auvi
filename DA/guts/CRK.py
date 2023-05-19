@@ -22,6 +22,7 @@ from Avt.cwrap import (
 );
 
 from arcana.Fmat import *;
+from arcana.Tools import basef;
 from arcana.Xfer import DOS;
 
 from .Meta import *;
@@ -87,25 +88,47 @@ class CRK:
   DUMP_HED_SZ=2+2+2+2;
 
 # ---   *   ---   *   ---
-# ice of this class mainly holds
-# data used for restoring
-# un-baked source
+# ice of this class used to
+# remember original object
+# and bake settings
 
-  def __init__(self,ob):
+  def __init__(self,ob,hier=False):
 
-    self.src  = None;
     self.pose = None;
 
     self.ob   = ob;
+    self.hier = hier;
 
-  def backup(self):
-    self.src=bmesh_save(self.ob.data);
+  def __del__(self):
+    self.clear_pose();
 
-  def restore(self):
-    bmesh_load(self.ob.data,self.ob.src);
+# ---   *   ---   *   ---
+# apply all mods/deforms/shapes
+# into copy of object
 
   def bake_pose(self):
-    self.pose=duplibake(self.ob);
+
+    if self.pose:
+      self.clear_pose();
+
+    children=[];
+
+    if self.hier:
+      children=get_hierarchy(self.ob);
+
+    select_all(self.ob,children);
+    self.pose=duplibake(True,True);
+
+    n=self.ob.name+'.CRKP';
+    self.pose.name=self.pose.data.name=n;
+
+  def clear_pose(self):
+
+    if not self.pose:
+      return;
+
+    bpy.data.meshes.remove(self.pose.data);
+    self.pose=None;
 
 # ---   *   ---   *   ---
 # converts primitives from crk
@@ -213,36 +236,36 @@ class CRK:
 # THEN invoke bmesh2crk
 
   @staticmethod
-  def from_bmesh(ob,fpath):
+  def from_bmesh(ob,fpath,hier=False):
 
-    self=CRK(ob);
-    self.backup();
+    self=CRK(ob,hier);
 
-    try:
+    # generate temp
+    files=self.bake();
 
-      # generate temp
-      files=self.bake();
+    # invoke C-side
+    DOS('bmesh2crk',[fpath]);
 
-      # invoke C-side
-      DOS('bmesh2crk',[fpath]);
-
-      # ^clean temp
-      for f in files:
-        os.remove(f);
-
-    finally:
-      self.restore();
+    # ^clean temp
+    for f in files:
+      os.remove(f);
 
 # ---   *   ---   *   ---
 # ^goes through
 
   def bake(self):
 
-    me    = self.ob.data;
+    # initial bake required for
+    # triangulation, else polycount
+    # would be wrong
+    self.bake_pose();
 
+    # placeholder
     mat   = 0;
     poses = 1;
 
+    # remember files created
+    # for later cleanup
     files = [f"{fpath}_meta"];
 
     # serialize metadata
@@ -265,7 +288,7 @@ class CRK:
 
   def bl_write_meta(self,poses,mat):
 
-    me    = self.ob.data;
+    me    = self.pose.data;
     hbuff = bytearray(CRK.DUMP_HED_SZ);
 
     hbuff[0:2]=ftb(wide,[len(me.vertices)]);
@@ -303,7 +326,7 @@ class CRK:
 
   def bl_write_box(self):
 
-    d     = self.ob.dimensions;
+    d     = self.pose.dimensions;
     bbuff = bytearray(3*4);
 
     bbuff[ 0 :  4]=ftb(real,[d.x / 2]);
@@ -318,7 +341,7 @@ class CRK:
 
   def bl_write_cords(vbuff,ibuff):
 
-    me    = self.ob.data;
+    me    = self.pose.data;
 
     loops = me.uv_layers.active.data;
     idex  = 0;
@@ -364,7 +387,7 @@ class CRK:
 
   def bl_write_tangents(self,vbuff):
 
-    me=self.ob.data;
+    me=self.pose.data;
     me.calc_tangents();
 
     for face in me.polygons:
@@ -393,5 +416,85 @@ class CRK:
         vbuff[svi + 44 : svi + 48]=ftb(real,[b[2]]);
 
     me.free_tangents();
+
+# ---   *   ---   *   ---
+# iv of from_bmesh;
+# makes bmesh from crk file
+
+  @staticmethod
+  def load(fpath,name=""):
+
+    if not len(name):
+      name=basef(name);
+
+    if name in bpy.data.meshes:
+      bpy.data.meshes.remove(
+        bpy.data.meshes[name]
+
+      );
+
+    me   = bpy.data.meshes.new(name);
+    ob   = bpy.data.objects.new(name,me);
+
+    src  = CRK.read(fpath);
+    self = CRK(ob);
+
+    self.load_poses(src);
+    link_object(ob);
+
+# ---   *   ---   *   ---
+# TODO: loading material
+#    me.materials.append();
+
+# ---   *   ---   *   ---
+# read in single pose data from
+# source file (see: CRK.read)
+
+  def load_pose(self,src,i):
+
+    verts = src[idex]['co'];
+    faces = src[idex]['face'];
+    uvs   = src[idex]['uv'];
+
+    if i==0:
+      ice_t(self,verts,faces,uvs);
+
+    else:
+      make_shape(self.ob,verts,'pose_'+str(i));
+
+# ---   *   ---   *   ---
+# ^bat
+
+  def load_poses(self,src):
+
+    for i in range(len(src)):
+      self.load_pose(src,idex);
+
+# ---   *   ---   *   ---
+# instance default pose
+
+  def ice_t(self,verts,faces,uvs):
+
+    me  = self.ob.data;
+
+    beg = faces[0][0];
+    i   = 0;
+
+    for tup in faces:
+      faces[i]=[j-beg for j in tup];
+      i+=1;
+
+    me.from_pydata(verts,[],faces);
+    me.uv_layers.new();
+
+    for face in me.polygons:
+      for vi,loop in zip(
+        face.vertices,
+        face.loop_indices
+
+      ):
+
+        loop=me.uv_layers.active.data[loop];
+        loop.uv[:]=uvs[vi][:];
 
 # ---   *   ---   *   ---
