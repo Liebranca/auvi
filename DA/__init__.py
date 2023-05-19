@@ -18,8 +18,15 @@ import bpy;
 from importlib import reload;
 from arcana import Mod;
 
-from .guts import N3;
-from .guts import Matbake as Matbake_guts;
+from .guts import (
+
+  Meta    as Meta_guts,
+  Matbake as Matbake_guts,
+  CRK     as CRK_guts,
+
+  N3,
+
+);
 
 from .iface import (
 
@@ -37,7 +44,7 @@ from .iface import (
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.5a';
+VERSION = 'v0.00.6a';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
@@ -71,7 +78,12 @@ def update():
 
   # ^reload common modules
   for mod in [
-    N3,Matbake_guts
+
+    Meta_guts,
+    Matbake_guts,
+    CRK_guts,
+
+    N3,
 
   ]:
 

@@ -163,7 +163,7 @@ def scene_or_depsgraph():
     out=bpy.context.scene;
 
   else:
-    out=bpy.context.evaluated_depsgraph_get()
+    out=bpy.context.evaluated_depsgraph_get();
 
   return out;
 

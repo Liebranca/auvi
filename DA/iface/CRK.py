@@ -14,7 +14,7 @@
 # deps
 
 from .Meta import *;
-from arcana.Bytes import CRK;
+from ..guts.CRK import CRK;
 
 # ---   *   ---   *   ---
 
@@ -33,7 +33,7 @@ class DA_OT_CRK_Run(Operator):
 
     fpath = crk.outdir + ob.data.name;
 
-    CRK.bl_to_crk(ob,fpath);
+    CRK.from_bmesh(ob,fpath);
     return {'FINISHED'};
 
 # ---   *   ---   *   ---
