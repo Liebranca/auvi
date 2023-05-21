@@ -1,4 +1,11 @@
->auvi v1.00.0
+>auvi v1.01.0
+
+*> Asset exporter
+x Write bmesh to CRK
+x Read CRK to bmesh
+~ Write material to JOJ
+~ Combine JOJ and CRK into DAF
+~ Multiple assets per archive
 
 *>DA
 x Autoload
@@ -13,6 +20,6 @@ x States
 
 *>Anim tools
 x Hierarchical sync
-~ State sync
-~ Render out frames
-~ ^ JOJ-pack animation strip
+x State sync
+x Render out frames
+x ^ JOJ-pack animation strip

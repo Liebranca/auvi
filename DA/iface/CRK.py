@@ -15,6 +15,12 @@
 
 from .Meta import *;
 from ..guts.CRK import CRK;
+from arcana import ARPATH;
+
+# ---   *   ---   *   ---
+# ROM
+
+CACHEPATH=ARPATH+'/.cache/auvi/mesh/';
 
 # ---   *   ---   *   ---
 
@@ -31,7 +37,7 @@ class DA_OT_CRK_Run(Operator):
     ob    = C.active_object;
     crk   = C.scene.da_crk;
 
-    fpath = crk.outdir + ob.data.name;
+    fpath = crk.outdir;
 
     CRK.from_bmesh(ob,fpath);
     return {'FINISHED'};
@@ -55,7 +61,7 @@ class DA_CRK(PropertyGroup):
 
   outdir: StringProperty(
     description = "Path to output directory",
-    default     = '/tmp/',
+    default     = CACHEPATH,
 
   );
 

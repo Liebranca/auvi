@@ -191,6 +191,8 @@ def duplibake(merge=False,mktris=False):
   out   = None;
   clear = [];
 
+  sel   = get_selected();
+
   bpy.ops.object.duplicate();
   for dupli in get_selected():
     meshbake(dupli,mktris);
@@ -198,7 +200,8 @@ def duplibake(merge=False,mktris=False):
 
   if merge:
 
-    bpy.ops.object.join();
+    if len(sel) > 1:
+      bpy.ops.object.join();
 
     out   = get_active();
     clear = [
@@ -236,7 +239,7 @@ def make_shape(dst,src,pose_name):
 
   );
 
-  if is instance(src,list):
+  if isinstance(src,list):
     shape_from_flat(shape,src);
 
   else:
@@ -252,7 +255,7 @@ def shape_from_flat(dst,src):
 
   vflat_shape_set(verts,indices,dst);
 
-def shape_from_verts(dst,src);
+def shape_from_verts(dst,src):
   verts   = np.array(src[:]);
   indices = [i for i in range(len(verts))];
 

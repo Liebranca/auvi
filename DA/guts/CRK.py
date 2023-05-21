@@ -22,8 +22,10 @@ from Avt.cwrap import (
 );
 
 from arcana.Fmat import *;
-from arcana.Tools import basef;
+from arcana.Tools import basef,chkdir;
 from arcana.Xfer import DOS;
+from arcana.Bytes import unfrac_u8,unfrac_u8_vec3;
+from arcana.Seph import *;
 
 from .Meta import *;
 
@@ -86,6 +88,14 @@ class CRK:
 
   # verts + indices + poses + matidex
   DUMP_HED_SZ=2+2+2+2;
+
+  # file read modes
+  UNPACK_BMESH={
+    'use_pseph': 1,
+
+  };
+
+  pseph=Seph(Seph.POINT,8,8,8);
 
 # ---   *   ---   *   ---
 # ice of this class used to
@@ -160,7 +170,7 @@ class CRK:
       for vert in verts:
 
         bl_prim['co'].append((
-          vert[0],vert[1],vert[2],
+          vert[0],-vert[2],vert[1],
 
         ));
 
@@ -187,11 +197,19 @@ class CRK:
     return out;
 
 # ---   *   ---   *   ---
+# gives pydata to recreate
+# mesh within blender
 
   @staticmethod
-  def read(fpath):
+  def read(fpath,use_pseph=0):
 
-    out=[];
+    out    = [];
+
+    xyz_fn = (CRK.pseph.unpack
+      if   use_pseph
+      else unfrac_u8_vec3
+
+    );
 
     with open(fpath,'rb') as file:
 
@@ -212,9 +230,17 @@ class CRK:
           vert = CRK.VERTEX.read(file);
           uf   = [];
 
-          for key in ['X','Y','Z','UVX']:
-            uf.append(unfrac_u8(vert[key]));
+          xyz  = (
 
+            (vert['X'] <<  0)
+          | (vert['Y'] <<  8)
+          | (vert['Z'] << 16)
+
+          );
+
+          uf.extend(xyz_fn(xyz));
+
+          uf.append(unfrac_u8(vert['UVX']));
           uf.append(1.0-unfrac_u8(vert['UVY']));
 
           verts.append(uf);
@@ -238,10 +264,11 @@ class CRK:
   @staticmethod
   def from_bmesh(ob,fpath,hier=False):
 
-    self=CRK(ob,hier);
+    self  = CRK(ob,hier);
+    fpath = chkdir(fpath,ob.name);
 
     # generate temp
-    files=self.bake();
+    files=self.bake(fpath);
 
     # invoke C-side
     DOS('bmesh2crk',[fpath]);
@@ -250,10 +277,12 @@ class CRK:
     for f in files:
       os.remove(f);
 
+    select_all(self.ob,[]);
+
 # ---   *   ---   *   ---
 # ^goes through
 
-  def bake(self):
+  def bake(self,fpath):
 
     # initial bake required for
     # triangulation, else polycount
@@ -339,7 +368,7 @@ class CRK:
 # ^write vertex cords, normals, uvs
 # and indices to pre-allocated buffers
 
-  def bl_write_cords(vbuff,ibuff):
+  def bl_write_cords(self,vbuff,ibuff):
 
     me    = self.pose.data;
 
@@ -422,7 +451,7 @@ class CRK:
 # makes bmesh from crk file
 
   @staticmethod
-  def load(fpath,name=""):
+  def load(fpath,mode=UNPACK_BMESH,name=""):
 
     if not len(name):
       name=basef(name);
@@ -436,7 +465,7 @@ class CRK:
     me   = bpy.data.meshes.new(name);
     ob   = bpy.data.objects.new(name,me);
 
-    src  = CRK.read(fpath);
+    src  = CRK.read(fpath,*mode);
     self = CRK(ob);
 
     self.load_poses(src);
@@ -452,12 +481,12 @@ class CRK:
 
   def load_pose(self,src,i):
 
-    verts = src[idex]['co'];
-    faces = src[idex]['face'];
-    uvs   = src[idex]['uv'];
+    verts = src[i]['co'];
+    faces = src[i]['face'];
+    uvs   = src[i]['uv'];
 
     if i==0:
-      ice_t(self,verts,faces,uvs);
+      self.ice_t(verts,faces,uvs);
 
     else:
       make_shape(self.ob,verts,'pose_'+str(i));
@@ -468,7 +497,7 @@ class CRK:
   def load_poses(self,src):
 
     for i in range(len(src)):
-      self.load_pose(src,idex);
+      self.load_pose(src,i);
 
 # ---   *   ---   *   ---
 # instance default pose
@@ -479,10 +508,6 @@ class CRK:
 
     beg = faces[0][0];
     i   = 0;
-
-    for tup in faces:
-      faces[i]=[j-beg for j in tup];
-      i+=1;
 
     me.from_pydata(verts,[],faces);
     me.uv_layers.new();

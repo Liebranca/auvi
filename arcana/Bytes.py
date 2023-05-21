@@ -17,20 +17,41 @@
 from mathutils import Vector;
 
 # ---   *   ---   *   ---
+# info
+
+VERSION = 'v0.01.0b';
+AUTHOR  = 'IBN-3DILA';
+
+# ---   *   ---   *   ---
+# ROM
 
 BITS=[i for i in range(0,16)];
 STEP=[1.0/(1<<i) for i in range(1,17)];
 MAXV=[(1<<i)-1 for i in range(1,17)];
 
-ROUND_NVEC=1.25;
-ROUND_CORD=0.64;
+# ---   *   ---   *   ---
 
-ROUND_MODE=ROUND_NVEC;
+ROUND_NVEC    = 1.25;
+ROUND_CORD    = 0.64;
+ROUND_LINE    = 1.00;
+
+FRAC_SIGNED   = False;
+FRAC_UNSIGNED = True;
 
 # ---   *   ---   *   ---
 # float to linear int
 
-def frac(x,step,nbits,unsig=False):
+def frac(
+
+  x,
+
+  step,
+  nbits,
+
+  unsig=False,
+  rmode=ROUND_NVEC
+
+):
 
   mid  = 1<<nbits;
   max  = MAXV[nbits];
@@ -40,7 +61,7 @@ def frac(x,step,nbits,unsig=False):
   b    = round(x/step);
   top  = step*(max-mid);
 
-  top -= step*ROUND_MODE;
+  top -= step*rmode;
 
   b   += mid*(not unsig);
   b   -= 1*(b==max and x<top);
@@ -66,11 +87,70 @@ def unfrac(b,step,nbits,unsig=False):
 # ---   *   ---   *   ---
 # aliasing
 
-def frac_u8(x):
-  return frac(x,STEP[7],BITS[7],True);
+def frac_u8(x,rmode=ROUND_NVEC):
+  return frac(x,STEP[7],BITS[7],True,rmode);
 
 def unfrac_u8(b):
   return unfrac(b,STEP[7],BITS[7],True);
+
+def frac_i8(x,rmode=ROUND_NVEC):
+  return frac(x,STEP[7],BITS[7],False,rmode);
+
+def unfrac_i8(b):
+  return unfrac(b,STEP[7],BITS[7],False);
+
+# ---   *   ---   *   ---
+# ^bat
+
+def unfrac_vec(b,vsz,nbits,step,unsig):
+
+  out=[];
+
+  for _ in range(0,vsz):
+
+    out.append(unfrac_u8(
+
+      b & 0xFF,
+
+      nbits,
+      step,
+
+      unsig
+
+    ));
+
+    b = b >> 8;
+
+  return out;
+
+# ---   *   ---   *   ---
+# ^bat aliasing ;>
+
+def unfrac_u8_vec3(b):
+
+  return unfrac_vec(
+
+    b,3,
+
+    STEP[7],
+    BITS[7],
+
+    FRAC_UNSIGNED
+
+  );
+
+def unfrac_i8_vec3(b):
+
+  return unfrac_vec(
+
+    b,3,
+
+    STEP[7],
+    BITS[7],
+
+    FRAC_SIGNED
+
+  );
 
 # ---   *   ---   *   ---
 # TODO
