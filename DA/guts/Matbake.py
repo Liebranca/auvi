@@ -15,15 +15,23 @@
 # deps
 
 import bpy;
+from mathutils import Vector;
 
 from bpy.types import (
 
+  ShaderNodeTexCoord,
+  ShaderNodeMapping,
   ShaderNodeTexImage,
   ShaderNodeGroup,
 
+  ShaderNodeOutputMaterial,
+
 );
 
+from . import N3;
 from arcana.Tools import ns_path,chkdir;
+
+from .Meta import *;
 
 # ---   *   ---   *   ---
 # info
@@ -293,13 +301,17 @@ def combine_layers(ob,t,fpath):
 # ---   *   ---   *   ---
 # checks for correct structure
 # in material node trees
-
-# TODO: full validation!
-#       this is placeholder at best
+#
+# will load base tree if incorrect
+# and return false
+#
+# else ret true
 
 def validate_input(ob):
 
   out  = True;
+  mb   = ob.da_matbake;
+
   mats = [
 
     slot.material
@@ -307,18 +319,41 @@ def validate_input(ob):
 
   ];
 
-#  for mat in mats:
-#
-#    nt=mat.node_tree;
-#    for name,type in {
-#      'MATBAKE': NodeShaderGroup,
-#      'TEXTURE': NodeShaderTexImage,
-#
-#    }.items():
-#      out=node_type_name_chk(name,type)
-#      if not out: break;
-#
-#    if not out: break;
+  st={
+
+    'TEXCOORDS': ShaderNodeTexCoord,
+    'MAPPING'  : ShaderNodeMapping,
+    'TEXTURE'  : ShaderNodeTexImage,
+
+    'MATBAKE'  : ShaderNodeGroup,
+    'OUTPUT'   : ShaderNodeOutputMaterial,
+
+    'BAKETO_COLOR': ShaderNodeTexImage,
+    'BAKETO_ALPHA': ShaderNodeTexImage,
+
+  };
+
+  i=0;
+
+  for mat in mats:
+
+    nodes = mat.node_tree.nodes;
+    x     = mb.materials[i];
+
+    for name,type in st.items():
+
+      if not node_type_name_chk(nodes,name,type):
+
+        config=get_st(x,ob);
+
+        N3.load_material(mat,'non');
+        out=False;
+
+        set_st(x,ob,config);
+
+        break;
+
+    i+=1;
 
   return out;
 
@@ -330,23 +365,24 @@ def node_type_name_chk(nodes,name,type):
 
   return (
       name in nodes
-  and isintance(nodes[name],type)
+  and isinstance(nodes[name],type)
 
   );
-
-# ---   *   ---   *   ---
-# recreates correct node structure
-
-def n3_regen(ob):
-  pass;
 
 # ---   *   ---   *   ---
 # bakes all images
 
 def run(ob):
 
+  # early exit
   if not validate_input(ob):
-    n3_regen(ob);
+
+    return (
+
+      'Materials were out of whack and '
+    + 'had to be regenerated! baking aborted'
+
+    );
 
   # get output path
   fpath = chkdir(ob.da_matbake.fpath,ob.name);
@@ -368,5 +404,182 @@ def run(ob):
 
   # ^restore config
   set_render_settings(old);
+  setout(ob,'NormalBake',0);
+
+  return "";
+
+# ---   *   ---   *   ---
+
+def bl_material_add(ob,name='Material'):
+
+  select(ob);
+  make_active(ob);
+
+  bpy.ops.object.material_slot_add();
+  out=bpy.data.materials.new(name);
+
+  ob.active_material_index=len(
+    ob.material_slots
+
+  )-1;
+
+  ob.active_material=out;
+
+  return out;
+
+# ---   *   ---   *   ---
+# get blender material
+# assoc with DA_Material
+
+def get_material(self,ob):
+
+  mb  = ob.da_matbake;
+  i   = mb.materials[:].index(self);
+
+  mat = ob.material_slots[i].material;
+
+  return mat;
+
+# ---   *   ---   *   ---
+# get material node tree
+# assoc with selected DA_Material
+
+def get_matnodes(self,ob):
+
+  mat = get_material(self,ob);
+  nt  = mat.node_tree;
+
+  return nt;
+
+# ---   *   ---   *   ---
+# creates new
+
+def material_nit(ob):
+
+  mb  = ob.da_matbake;
+  mat = bl_material_add(ob,'non');
+
+  mb.materials.add();
+  N3.load_material(mat,'non');
+
+# ---   *   ---   *   ---
+# ^removes
+
+def material_del(ob):
+
+  ob = C.object;
+  mb = ob.da_matbake;
+
+  i  = mb.material_i;
+
+  ob.active_material_index=i;
+
+  bpy.data.materials.remove(ob.active_material);
+  bpy.ops.object.material_slot_remove();
+
+  mb.materials.remove(i);
+
+# ---   *   ---   *   ---
+# gets matbake group node input
+
+def get_mbin(nodes,key):
+
+  ndi   = nodes['MATBAKE'].inputs;
+  value = ndi[key].default_value;
+
+  if(
+
+     isinstance(value,bpy.types.bpy_prop_array)
+  or isinstance(value,Vector)
+
+  ):
+
+    return value[:];
+
+  else:
+    return value;
+
+# ---   *   ---   *   ---
+# ^set
+
+def set_mbin(nodes,key,value):
+
+  ndi=nodes['MATBAKE'].inputs;
+
+  if isinstance(value,list):
+    ndi[key].default_value[:]=value[:];
+
+  else:
+    ndi[key].default_value=value;
+
+# ---   *   ---   *   ---
+# record DA_material state
+
+def get_st(x,ob):
+
+  mat = get_material(x,ob);
+  nd  = mat.node_tree.nodes;
+
+  return [
+
+    x.mapping,
+
+    nd['TEXTURE'].projection,
+    nd['TEXTURE'].projection_blend,
+
+    nd['MAPPING'].inputs[1].default_value[:],
+    nd['MAPPING'].inputs[2].default_value[:],
+    nd['MAPPING'].inputs[3].default_value[:],
+
+    get_mbin(nd,'BumpStr'),
+
+    get_mbin(nd,'RoughTight'),
+    get_mbin(nd,'RoughBase'),
+
+    get_mbin(nd,'CurvDetail'),
+    get_mbin(nd,'CurvEdge'),
+
+    get_mbin(nd,'EmitColor'),
+    get_mbin(nd,'EmitTolerance'),
+
+    get_mbin(nd,'MetalColor'),
+    get_mbin(nd,'MetalTolerance'),
+
+    x.im,
+
+  ];
+
+# ---   *   ---   *   ---
+# ^restore
+
+def set_st(x,ob,src):
+
+  mat = get_material(x,ob);
+  nd  = mat.node_tree.nodes;
+
+  x.mapping=src[0];
+
+  nd['TEXTURE'].projection=src[1];
+  nd['TEXTURE'].projection_blend=src[2];
+
+  nd['MAPPING'].inputs[1].default_value=src[3];
+  nd['MAPPING'].inputs[2].default_value=src[4];
+  nd['MAPPING'].inputs[3].default_value=src[5];
+
+  set_mbin(nd,'BumpStr',src[6]);
+
+  set_mbin(nd,'RoughTight',src[7]);
+  set_mbin(nd,'RoughBase',src[8]);
+
+  set_mbin(nd,'CurvDetail',src[9]);
+  set_mbin(nd,'CurvEdge',src[10]);
+
+  set_mbin(nd,'EmitColor',src[11]);
+  set_mbin(nd,'EmitTolerance',src[12]);
+
+  set_mbin(nd,'MetalColor',src[13]);
+  set_mbin(nd,'MetalTolerance',src[14]);
+
+  x.im=src[15];
 
 # ---   *   ---   *   ---

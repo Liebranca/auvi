@@ -43,35 +43,11 @@ PROJECTION_TYPES=[
 ];
 
 # ---   *   ---   *   ---
-# get blender material
-# assoc with DA_Material
-
-def get_material(self,ob):
-
-  mb  = ob.da_matbake;
-  i   = mb.materials[:].index(self);
-
-  mat = ob.material_slots[i].material;
-
-  return mat;
-
-# ---   *   ---   *   ---
-# get material node tree
-# assoc with selected DA_Material
-
-def get_matnodes(self,ob):
-
-  mat = get_material(self,ob);
-  nt  = mat.node_tree;
-
-  return nt;
-
-# ---   *   ---   *   ---
 # syncs material to image
 
 def on_set_matim(self,C):
 
-  mat = get_material(self,C.object);
+  mat = guts.get_material(self,C.object);
   nt  = mat.node_tree;
 
   if self.im!=None:
@@ -84,7 +60,7 @@ def on_set_matim(self,C):
 
 def set_texture_mapping(self,C):
 
-  nt  = get_matnodes(self,C.object);
+  nt  = guts.get_matnodes(self,C.object);
   src = nt.nodes['TEXCOORDS'];
   dst = nt.nodes['MAPPING'];
 
@@ -163,7 +139,7 @@ class DA_Material(PropertyGroup):
 
 def draw_node_input(nd,name,layout):
 
-  layout.label(text=name);
+  layout.label(text=name+':');
   layout.prop(
     nd.inputs[name],
     'default_value',
@@ -176,7 +152,7 @@ def draw_node_input(nd,name,layout):
 
 def draw_matbox(self,ob,layout):
 
-  nt=get_matnodes(self,ob);
+  nt=guts.get_matnodes(self,ob);
 
   row=layout.row();
   row.label(text='TEXTURE SETTINGS');
@@ -193,8 +169,22 @@ def draw_matbox(self,ob,layout):
 
   if nd.projection == 'BOX':
     row=layout.row();
-    row.label(text='Blend');
+    row.label(text='Blend:');
     row.prop(nd,'projection_blend',text='');
+
+  nd=nt.nodes['MAPPING'];
+
+  row=layout.row();
+  row.label(text='Offset:');
+  row.prop(nd.inputs[1],'default_value',text='');
+
+  row=layout.row();
+  row.label(text='Rotation:');
+  row.prop(nd.inputs[2],'default_value',text='');
+
+  row=layout.row();
+  row.label(text='Scale:');
+  row.prop(nd.inputs[3],'default_value',text='');
 
 # ---   *   ---   *   ---
 
@@ -301,14 +291,7 @@ class DA_OT_Material_Add(Operator):
     "Adds a new DarkAge material to object";
 
   def execute(self,C):
-
-    ob = C.object;
-    mb = ob.da_matbake;
-
-    x  = mb.materials.add();
-
-    material_nit(x,C);
-
+    guts.material_nit(C.object);
     return {'FINISHED'};
 
 # ---   *   ---   *   ---
@@ -322,14 +305,7 @@ class DA_OT_Material_Remove(Operator):
     "Remove selected material from object";
 
   def execute(self,C):
-
-    ob = C.object;
-    mb = ob.da_matbake;
-
-    i  = mb.material_i;
-
-    mb.materials.remove(i);
-
+    guts.material_del(C.object);
     return {'FINISHED'};
 
 # ---   *   ---   *   ---
@@ -349,6 +325,7 @@ class DA_OT_Material_Goup(Operator):
 
     if(i>0):
 
+      ob.active_material_index=i;
       bpy.ops.object.material_slot_move(
         direction='DOWN'
 
@@ -376,6 +353,7 @@ class DA_OT_Material_Godown(Operator):
 
     if(i<len(mb.materials)-1):
 
+      ob.active_material_index=i;
       bpy.ops.object.material_slot_move(
         direction='UP'
 
@@ -416,7 +394,10 @@ class DA_OT_Matbake_Run(Operator):
   def execute(self,C):
 
     ob=C.active_object;
-    guts.run(ob);
+    me=guts.run(ob);
+
+    if len(me):
+      self.report({'INFO'},me);
 
     return {'FINISHED'};
 
@@ -459,6 +440,7 @@ class DA_Material_Panel(Panel):
     row.prop(mb,"fpath");
 
     row=layout.row();
+    row.label(text='Size:');
     row.prop(mb,"render_sz",text='');
 
     row=layout.row();

@@ -35,6 +35,8 @@ from arcana.Tools import (
 
 );
 
+from .Meta import *;
+
 # ---   *   ---   *   ---
 # info
 
@@ -507,6 +509,10 @@ def save_material(mat):
   n3.pack();
 
 def load_material(dst,src):
+
+  dst.use_nodes=True;
+  update_scene();
+
   ar=DA_Node_Tree.unpack(src);
   load_tree(dst.node_tree,ar);
 

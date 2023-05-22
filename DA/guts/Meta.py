@@ -37,7 +37,6 @@ def select(ob):
 def make_active(ob):
   bpy.context.view_layer.objects.active=ob;
 
-
 def get_selected():
   return bpy.context.selected_objects;
 
