@@ -79,6 +79,9 @@ def update():
     reload(mod);
     mod.register();
 
+    if hasattr(mod,'on_reload'):
+      mod.on_reload();
+
   # ^reload common modules
   for mod in [
 
@@ -91,5 +94,8 @@ def update():
   ]:
 
     reload(mod);
+
+    if hasattr(mod,'on_reload'):
+      mod.on_reload();
 
 # ---   *   ---   *   ---

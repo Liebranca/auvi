@@ -37,6 +37,8 @@ class Log_Tree:
     self.parent = parent;
     self.pad    = '';
 
+    self.child  = [];
+
     self.calc_pad();
 
   def __del__(self):
@@ -46,11 +48,27 @@ class Log_Tree:
 
     self.end_scope('RET');
 
+    if self.parent:
+      self.parent.bury(self);
+
   def beget(self,me):
-    c=Log_Tree(self);
+
+    par=self;
+
+    if len(self.child):
+      par=self.child[-1];
+
+    c=Log_Tree(par);
     c.beg_scope(me);
 
+    self.child.append(c);
+
     return c;
+
+  def bury(self,c):
+
+    if c in self.child:
+      self.child.remove(c);
 
 # ---   *   ---   *   ---
 

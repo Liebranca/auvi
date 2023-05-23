@@ -485,8 +485,6 @@ def run(ob):
   set_render_settings(RENDER_SETTINGS);
   sz=set_output_settings(ob);
 
-  dst_nit_preview(ob);
-
   select_all(ob.da_matbake.dst,[ob]);
   update_scene();
 
@@ -496,7 +494,7 @@ def run(ob):
 
   # ^pack images
   Log.line('Getting the JOJ');
-  DOS(
+  errme=DOS(
 
     'joj',[
 
@@ -511,12 +509,13 @@ def run(ob):
 
   );
 
-  dst_nit_images(ob,files);
+  if len(errme):
+    Log.err(errme);
 
-#  # remove temp files
-#  Log.line('Running cleanup');
-#  for f in files:
-#    os.remove(f);
+  # remove temp files
+  Log.line('Running cleanup');
+  for f in files:
+    os.remove(f);
 
   # ^restore config
   set_render_settings(old);
@@ -528,17 +527,82 @@ def run(ob):
   return "";
 
 # ---   *   ---   *   ---
+# loads material from *.joj
+
+def load(ob,fpath):
+
+  global Log;
+  Log=WLog.beget('MATLOAD');
+
+  if not joj_unpack(fpath):
+    Log.line('ABORT');
+    return;
+
+  files=[
+
+    fpath+IMAGE_EXT[t]
+    for t in BAKE_TYPES.keys()
+
+  ];
+
+  dst_nit_preview(ob,basef(fpath));
+  dst_nit_images(ob,files);
+
+  del Log;
+
+# ---   *   ---   *   ---
+# selfex
+
+def joj_unpack(fpath):
+
+  Log.beg_scope('Getting the JOJ');
+
+  out   = True;
+  errme = DOS(
+
+    'unjoj',[
+
+      '-o',fpath+'_u',
+      fpath,
+
+    ],
+
+  );
+
+  if len(errme):
+    Log.err(errme);
+    Log.err('Could not get the JOJ');
+
+    out=False;
+
+  else:
+
+    exts=['n','a','o'];
+    for i in range(0,3):
+
+      base=fpath+f"_u{i}.png";
+
+      if not os.path.exists(base):
+        Log.err('The JOJ has been corrupted');
+        out=False;
+
+        break;
+
+      ext=exts[i];
+      os.rename(base,fpath+f"_{ext}.png");
+
+  Log.end_scope();
+  return out;
+
+# ---   *   ---   *   ---
 # creates material preview
 
-def dst_nit_preview(ob):
+def dst_nit_preview(ob,name='Material'):
 
-  dst  = ob.da_matbake.dst;
-  name = basef(ns_path(ob.name))+'_preview';
+  bl_material_clear(ob);
+  bl_material_add(ob,name);
 
-  bl_material_clear(dst);
-  bl_material_add(dst,name);
-
-  mat = dst.material_slots[0].material;
+  mat = ob.material_slots[0].material;
   nt  = mat.node_tree;
 
   mat.name=name;
@@ -549,8 +613,7 @@ def dst_nit_preview(ob):
 
 def dst_nit_images(ob,files):
 
-  dst = ob.da_matbake.dst;
-  mat = dst.material_slots[0].material;
+  mat = ob.material_slots[0].material;
   nt  = mat.node_tree;
 
   load_image(nt.nodes['ALBEDO'],files[0]);

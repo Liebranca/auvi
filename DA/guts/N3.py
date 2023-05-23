@@ -35,18 +35,23 @@ from arcana.Tools import (
 
 );
 
+from arcana.Xfer import DOS;
+from arcana.DAF import *;
+
 from .Meta import *;
 
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.4b';
+VERSION = 'v0.00.5b';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
 # ROM
 
-CACHEPATH=ARPATH+'/.cache/auvi/node_tree/';
+CACHEPATH = ARPATH+'/.cache/auvi/node_tree/';
+DATAPATH  = ARPATH+'/auvi/data/';
+
 EXT='.n3';
 
 SHD_ATTRS=[
@@ -70,10 +75,71 @@ SHD_ATTRS=[
 SHD_ATTRS.extend(dir(ShaderNode));
 SHD_ATTRS={key:None for key in SHD_ATTRS};
 
+ARCHIVE_FLIST=[
+
+  'Bake_Preview.n3',
+  'FauxMetal2.n3',
+  'non.n3',
+
+  'Bump2Normal.n3',
+  'FauxMetal.n3',
+  'Normal2AO.n3',
+
+  'ColorMask.n3',
+  'FauxMetalShine.n3',
+  'Normal2Curv.n3',
+
+  'CompChannel.n3',
+  'Matbake.n3',
+  'Normal2Rough.n3'
+
+];
+
 # ---   *   ---   *   ---
 # GBL
 
 Sesh_WT={};
+
+# ---   *   ---   *   ---
+# recreates archive from cache
+
+def save_archive(ar):
+
+  flist=[
+
+    CACHEPATH+f"/{f}"
+    for f in ARCHIVE_FLIST
+
+  ];
+
+  ar.cpush(flist);
+
+# ---   *   ---   *   ---
+# ^checks that all nodetrees are in
+# cache, fetches missing
+
+def load_archive(ar):
+
+  flist=[
+    f for f in ARCHIVE_FLIST
+    if not os.path.exists(CACHEPATH+f"/{f}")
+
+  ];
+
+  if len(flist):
+    ar.extract(flist,CACHEPATH);
+
+# ---   *   ---   *   ---
+# routine
+
+def on_reload():
+
+  ar=DAF(DATAPATH+'matbake_nodes');
+
+  if not ar.exists():
+    save_archive(ar);
+
+  load_archive(ar);
 
 # ---   *   ---   *   ---
 # check if cached node tree needs updating

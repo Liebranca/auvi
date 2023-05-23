@@ -72,8 +72,10 @@ def based(s):
   if len(l) > 1:
     return l[-1];
 
-  else:
+  elif len(l) == 1:
     return l[0];
+
+  return '';
 
 # ---   *   ---   *   ---
 # gives filename without extension
@@ -95,8 +97,10 @@ def dirof(s):
   if len(l) > 1:
     return '/'.join(l);
 
-  else:
-    return '';
+  elif len(l)==1:
+    return l[0];
+
+  return '';
 
 # ---   *   ---   *   ---
 # older than
