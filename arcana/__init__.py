@@ -14,10 +14,16 @@
 # deps
 
 import os;
+from .Log_Tree import *;
 
 # ---   *   ---   *   ---
 # ROM
 
 ARPATH=os.environ['ARPATH'];
+
+# ---   *   ---   *   ---
+# GBL
+
+WLog=Log_Tree();
 
 # ---   *   ---   *   ---

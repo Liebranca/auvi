@@ -42,6 +42,24 @@ PROJECTION_TYPES=[
 
 ];
 
+RENDER_SIZES=[
+
+  '64','128','256','512',
+  '1024','2048','4096',
+
+];
+
+AA_SCALES=[
+
+  ('x1','1',"No scaling"),
+  ('x2','2',"Double scale"),
+  ('x4','4',"Four times scale"),
+  ('x8','8',"Eight times scale"),
+
+  ('x16','16',"Sixteen times scale"),
+
+];
+
 # ---   *   ---   *   ---
 # syncs material to image
 
@@ -232,6 +250,9 @@ def draw_matbox(self,ob,layout):
   row=layout.row();
   draw_node_input(nd,"MetalTolerance",row);
 
+  row=layout.row();
+  draw_node_input(nd,"MetalMult",row);
+
 # ---   *   ---   *   ---
 # wrap multiple materials
 # on single object
@@ -239,14 +260,38 @@ def draw_matbox(self,ob,layout):
 register_class(DA_Material);
 class DA_Material_Bake(PropertyGroup):
 
-  render_sz: IntProperty(
+  dst: PointerProperty(
+
+    name        = 'Baketo',
+    description = \
+      "Low-poly object used for baking",
+
+    type        = Object,
+
+  );
+
+  render_sz: EnumProperty(
+
     name        = 'Bake size',
     description =
-      "(pow 2) Resolution used for baking",
+      "Resolution used for baking",
 
-    default     = 7,
-    min         = 4,
-    max         = 12,
+    items       = bl_list2enum(RENDER_SIZES),
+    default     = '128',
+
+  );
+
+  render_scale: EnumProperty(
+
+    name        = 'AA Scale',
+    description = (
+      "Renders bake at higher resolution "
+    + "to achieve smoother result"
+
+    ),
+
+    items       = AA_SCALES,
+    default     = 'x2',
 
   );
 
@@ -437,11 +482,19 @@ class DA_Material_Panel(Panel):
 # ---   *   ---   *   ---
 
     row=layout.row();
-    row.prop(mb,"fpath");
+    row.label(text='Lowpoly:');
+    row.prop(mb,"dst",text='');
 
     row=layout.row();
     row.label(text='Size:');
     row.prop(mb,"render_sz",text='');
+
+    row=layout.row();
+    row.label(text='AA Scale:');
+    row.prop(mb,"render_scale",text='');
+
+    row=layout.row();
+    row.prop(mb,"fpath");
 
     row=layout.row();
     row.operator(

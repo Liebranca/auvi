@@ -14,8 +14,9 @@
 # ---   *   ---   *   ---
 # deps
 
-import bpy;
+import bpy,io,os;
 from mathutils import Vector;
+from contextlib import redirect_stdout
 
 from bpy.types import (
 
@@ -28,10 +29,19 @@ from bpy.types import (
 
 );
 
-from . import N3;
-from arcana.Tools import ns_path,chkdir;
+from arcana import WLog;
+from arcana.Xfer import DOS;
+
+from arcana.Tools import (
+  ns_path,
+  chkdir,
+  dirof,
+  basef,
+
+);
 
 from .Meta import *;
+from . import N3;
 
 # ---   *   ---   *   ---
 # info
@@ -71,6 +81,7 @@ RENDER_ATTRS=[
   'render.bake.margin',
 
   'render.bake.use_selected_to_active',
+  'render.bake.cage_extrusion',
 
   'cycles.bake_type',
   'render.bake.view_from',
@@ -108,7 +119,8 @@ RENDER_SETTINGS={
   'render.bake.margin_type':'ADJACENT_FACES',
   'render.bake.margin':2,
 
-  'render.bake.use_selected_to_active':False,
+  'render.bake.use_selected_to_active':True,
+  'render.bake.cage_extrusion':0.05,
 
   'cycles.bake_type':'COMBINED',
   'render.bake.view_from':'ABOVE_SURFACE',
@@ -140,6 +152,11 @@ IMAGE_EXT={
   'ORME' : '_o.png',
 
 };
+
+# ---   *   ---   *   ---
+# GBL
+
+Log=None;
 
 # ---   *   ---   *   ---
 # makes dict of current config
@@ -184,7 +201,11 @@ def set_active_node(nt,nd):
 def set_output_settings(ob):
 
   mat = ob.material_slots[0].material;
-  sz  = 2**ob.da_matbake.render_sz;
+  sz  = int(ob.da_matbake.render_sz);
+  aa  = int(
+    ob.da_matbake.render_scale.replace('x','')
+
+  );
 
   for key in ['ALPHA','COLOR']:
 
@@ -194,13 +215,15 @@ def set_output_settings(ob):
     im.file_format      = 'PNG';
 
     im.source           = 'GENERATED';
-    im.generated_width  = sz;
-    im.generated_height = sz;
+    im.generated_width  = sz*aa;
+    im.generated_height = sz*aa;
 
   RENDER_SETTINGS[
     'render.bake.margin'
 
-  ]=sz>>5;
+  ]=sz>>4;
+
+  return sz;
 
 # ---   *   ---   *   ---
 # get node holding image being
@@ -208,8 +231,11 @@ def set_output_settings(ob):
 
 def get_output_node(ob,mode='COLOR'):
 
-  mat = ob.material_slots[0].material;
-  im  = mat.node_tree.nodes["BAKETO_"+mode];
+  dst  = ob.da_matbake.dst;
+  ndst = dst.material_slots[0].material;
+  ndst = ndst.node_tree;
+
+  im   = ndst.nodes["BAKETO_"+mode];
 
   return im;
 
@@ -219,8 +245,18 @@ def get_output_node(ob,mode='COLOR'):
 
 def setout(ob,key,alpha):
 
-  mats=[slot.material for slot in ob.material_slots];
-  mode='ALPHA' if alpha else 'COLOR';
+  mats=[
+
+    slot.material
+    for slot in ob.material_slots
+
+  ];
+
+  mode = 'ALPHA' if alpha else 'COLOR';
+
+  dst  = ob.da_matbake.dst;
+  ndst = dst.material_slots[0].material;
+  ndst = ndst.node_tree;
 
   for mat in mats:
 
@@ -239,6 +275,10 @@ def setout(ob,key,alpha):
 
     set_active_node(nt,im);
 
+  # for selected to active
+  im=ndst.nodes['BAKETO_'+mode];
+  set_active_node(ndst,im);
+
 # ---   *   ---   *   ---
 # render single output
 # of matbake node
@@ -254,7 +294,9 @@ def bake_layer(ob,key,alpha):
     bake_t='COMBINED';
 
   setout(ob,key,alpha);
-  bpy.ops.object.bake(type=bake_t);
+
+  with redirect_stdout(io.StringIO()):
+    bpy.ops.object.bake(type=bake_t);
 
 # ---   *   ---   *   ---
 # ^multiple layers of
@@ -263,40 +305,52 @@ def bake_layer(ob,key,alpha):
 def bake_image(ob,t,fpath):
 
   mode=False;
-
-  # spit step
-  print(f"\\-->{t}");
+  Log.beg_scope(t);
 
   for key in BAKE_TYPES[t]:
 
-    # spit step
-    print(f".  \\-->{key}");
+    Log.line(key);
 
     bake_layer(ob,key,mode);
     mode=True;
 
-  combine_layers(ob,t,fpath);
+  return combine_layers(ob,t,fpath);
 
 # ---   *   ---   *   ---
 # ^puts the two bakes together
 
 def combine_layers(ob,t,fpath):
 
-  color=get_output_node(ob,'COLOR');
-  alpha=get_output_node(ob,'ALPHA');
+  Log.line('^Combining layers');
 
+  out   = fpath+IMAGE_EXT[t];
+  sz    = int(ob.da_matbake.render_sz);
+
+  color = get_output_node(ob,'COLOR');
+  alpha = get_output_node(ob,'ALPHA');
+
+  # undo scaling
+  color.image.scale(sz,sz);
+  alpha.image.scale(sz,sz);
+
+  # get color and alpha
   a=list(color.image.pixels);
   b=list(alpha.image.pixels);
 
+  # ^roll together
   a[3::4]=b[0::4];
-
   color.image.pixels[:]=a[:];
 
+  # save modified
   color.image.save(
-    filepath = fpath+IMAGE_EXT[t],
+    filepath = out,
     quality  = 100
 
   );
+
+  Log.end_scope("\n");
+
+  return out;
 
 # ---   *   ---   *   ---
 # checks for correct structure
@@ -346,10 +400,19 @@ def validate_input(ob):
 
         config=get_st(x,ob);
 
-        N3.load_material(mat,'non');
-        out=False;
+        try:
 
-        set_st(x,ob,config);
+          N3.load_material(mat,'non');
+          out=False;
+
+          set_st(x,ob,config);
+
+        except:
+
+          Log.err(
+            "\nMaterial regeneration failed"
+
+          );
 
         break;
 
@@ -384,29 +447,113 @@ def run(ob):
 
     );
 
+  elif not ob.da_matbake.dst:
+
+    return (
+
+      'Bake has no destination; '
+    + 'set Lowpoly field of DarkAge Material'
+
+    );
+
+  global Log;
+  Log=WLog.beget('MATBAKE');
+
   # get output path
   fpath = chkdir(ob.da_matbake.fpath,ob.name);
+  files = [];
 
   # swap config
+  Log.line('Running config swap');
   old=get_render_settings();
   set_render_settings(RENDER_SETTINGS);
-  set_output_settings(ob);
+  sz=set_output_settings(ob);
 
-  # spit beg
-  print('MATBAKE');
+  select_all(ob.da_matbake.dst,[ob]);
 
   # run baking for each layer
   for t in BAKE_TYPES.keys():
-    bake_image(ob,t,fpath);
+    files.append(bake_image(ob,t,fpath));
 
-  # spit end
-  print("\nRET\n");
+  # ^pack images
+  Log.line('Getting the JOJ');
+  DOS(
+
+    'joj',[
+
+      '-sd',dirof(fpath),
+      '-o',fpath,
+
+      '-as',str(sz),
+
+      basef(fpath),
+
+    ],
+
+  );
+
+  dst_nit_preview(ob,files);
+
+#  # remove temp files
+#  Log.line('Running cleanup');
+#  for f in files:
+#    os.remove(f);
 
   # ^restore config
   set_render_settings(old);
   setout(ob,'NormalBake',0);
+  select_all(ob,[]);
+
+  del Log;
 
   return "";
+
+# ---   *   ---   *   ---
+# creates material preview
+
+def dst_nit_preview(ob,files):
+
+  dst  = ob.da_matbake.dst;
+  name = basef(ns_path(ob.name))+'_preview';
+
+  if not len(dst.material_slots):
+    bl_material_add(dst,name);
+
+  mat = dst.material_slots[0].material;
+  nt  = mat.node_tree;
+
+  mat.name=name;
+  N3.load_material(mat,'Bake_Preview');
+
+  load_image(nt.nodes['A'],files[0]);
+  load_image(nt.nodes['NC'],files[1]);
+  load_image(nt.nodes['ORME'],files[2]);
+
+  nt.nodes['NC'].image.colorspace_settings.name=(
+    'Non-Color'
+
+  );
+
+  nt.nodes['ORME'].image.colorspace_settings.name=(
+    'Non-Color'
+
+  );
+
+# ---   *   ---   *   ---
+# ^create image if missing
+
+def load_image(dst,fpath):
+
+  if dst.image==None:
+
+    if fpath not in bpy.data.images:
+      dst.image=bpy.data.images.new(fpath,8,8);
+
+    else:
+      dst.image=bpy.data.images[fpath];
+
+  dst.image.filepath = fpath;
+  dst.image.source   = 'FILE';
 
 # ---   *   ---   *   ---
 
@@ -544,6 +691,7 @@ def get_st(x,ob):
 
     get_mbin(nd,'MetalColor'),
     get_mbin(nd,'MetalTolerance'),
+    get_mbin(nd,'MetalMult'),
 
     x.im,
 
@@ -579,7 +727,8 @@ def set_st(x,ob,src):
 
   set_mbin(nd,'MetalColor',src[13]);
   set_mbin(nd,'MetalTolerance',src[14]);
+  get_mbin(nd,'MetalMult',src[15]),
 
-  x.im=src[15];
+  x.im=src[16];
 
 # ---   *   ---   *   ---

@@ -67,13 +67,13 @@ def basef(s):
 # gives first directory in fpath
 
 def based(s):
-  l=s.split('/')[0::-1];
+  l=s.split('/')[0:-1];
 
   if len(l) > 1:
     return l[-1];
 
   else:
-    return '';
+    return l[0];
 
 # ---   *   ---   *   ---
 # gives filename without extension
@@ -83,14 +83,14 @@ def nxbasef(s):
   s=basef(s);
   l=s.split('.');
 
-  return '.'.join(l[0::-1]);
+  return '.'.join(l[0:-1]);
 
 # ---   *   ---   *   ---
 # gives base of fpath
 # ie, fpath without filename
 
 def dirof(s):
-  l=s.split('/')[0::-1];
+  l=s.split('/')[0:-1];
 
   if len(l) > 1:
     return '/'.join(l);
