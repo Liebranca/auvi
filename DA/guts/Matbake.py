@@ -86,6 +86,13 @@ RENDER_ATTRS=[
   'cycles.bake_type',
   'render.bake.view_from',
 
+  'render.bake.use_pass_direct',
+  'render.bake.use_pass_indirect',
+  'render.bake.use_pass_diffuse',
+  'render.bake.use_pass_glossy',
+  'render.bake.use_pass_transmission',
+  'render.bake.use_pass_emit',
+
 ];
 
 # ---   *   ---   *   ---
@@ -96,9 +103,9 @@ RENDER_SETTINGS={
   'render.engine':'CYCLES',
 
   'cycles.use_adaptive_sampling':True,
-  'cycles.adaptive_threshold':0.100,
+  'cycles.adaptive_threshold':0.500,
 
-  'cycles.samples':16,
+  'cycles.samples':8,
   'cycles.adaptive_min_samples':1,
 
   'cycles.time_limit':0,
@@ -120,10 +127,17 @@ RENDER_SETTINGS={
   'render.bake.margin':2,
 
   'render.bake.use_selected_to_active':True,
-  'render.bake.cage_extrusion':0.05,
+  'render.bake.cage_extrusion':0.025,
 
   'cycles.bake_type':'COMBINED',
   'render.bake.view_from':'ABOVE_SURFACE',
+
+  'render.bake.use_pass_direct':True,
+  'render.bake.use_pass_indirect':False,
+  'render.bake.use_pass_diffuse':False,
+  'render.bake.use_pass_glossy':False,
+  'render.bake.use_pass_transmission':False,
+  'render.bake.use_pass_emit':True,
 
 };
 
@@ -249,6 +263,8 @@ def setout(ob,key,alpha):
 
     slot.material
     for slot in ob.material_slots
+
+    if slot.material != None
 
   ];
 
@@ -469,7 +485,10 @@ def run(ob):
   set_render_settings(RENDER_SETTINGS);
   sz=set_output_settings(ob);
 
+  dst_nit_preview(ob);
+
   select_all(ob.da_matbake.dst,[ob]);
+  update_scene();
 
   # run baking for each layer
   for t in BAKE_TYPES.keys():
@@ -492,7 +511,7 @@ def run(ob):
 
   );
 
-  dst_nit_preview(ob,files);
+  dst_nit_images(ob,files);
 
 #  # remove temp files
 #  Log.line('Running cleanup');
@@ -511,13 +530,13 @@ def run(ob):
 # ---   *   ---   *   ---
 # creates material preview
 
-def dst_nit_preview(ob,files):
+def dst_nit_preview(ob):
 
   dst  = ob.da_matbake.dst;
   name = basef(ns_path(ob.name))+'_preview';
 
-  if not len(dst.material_slots):
-    bl_material_add(dst,name);
+  bl_material_clear(dst);
+  bl_material_add(dst,name);
 
   mat = dst.material_slots[0].material;
   nt  = mat.node_tree;
@@ -525,7 +544,16 @@ def dst_nit_preview(ob,files):
   mat.name=name;
   N3.load_material(mat,'Bake_Preview');
 
-  load_image(nt.nodes['A'],files[0]);
+# ---   *   ---   *   ---
+# ^fills out rendered images
+
+def dst_nit_images(ob,files):
+
+  dst = ob.da_matbake.dst;
+  mat = dst.material_slots[0].material;
+  nt  = mat.node_tree;
+
+  load_image(nt.nodes['ALBEDO'],files[0]);
   load_image(nt.nodes['NC'],files[1]);
   load_image(nt.nodes['ORME'],files[2]);
 
@@ -535,9 +563,11 @@ def dst_nit_preview(ob,files):
   );
 
   nt.nodes['ORME'].image.colorspace_settings.name=(
-    'Non-Color'
+    'sRGB'
 
   );
+
+  nt.nodes['ORME'].image.alpha_mode='CHANNEL_PACKED';
 
 # ---   *   ---   *   ---
 # ^create image if missing
@@ -556,14 +586,13 @@ def load_image(dst,fpath):
   dst.image.source   = 'FILE';
 
 # ---   *   ---   *   ---
+# adds new blender material
 
 def bl_material_add(ob,name='Material'):
 
-  select(ob);
-  make_active(ob);
 
-  bpy.ops.object.material_slot_add();
   out=bpy.data.materials.new(name);
+  ob.data.materials.append(out);
 
   ob.active_material_index=len(
     ob.material_slots
@@ -575,6 +604,12 @@ def bl_material_add(ob,name='Material'):
   return out;
 
 # ---   *   ---   *   ---
+# ^clears all
+
+def bl_material_clear(ob):
+  ob.data.materials.clear();
+
+# ---   *   ---   *   ---
 # get blender material
 # assoc with DA_Material
 
@@ -583,9 +618,10 @@ def get_material(self,ob):
   mb  = ob.da_matbake;
   i   = mb.materials[:].index(self);
 
-  mat = ob.material_slots[i].material;
+  if i >= len(ob.material_slots):
+    return None;
 
-  return mat;
+  return ob.material_slots[i].material;
 
 # ---   *   ---   *   ---
 # get material node tree
@@ -593,10 +629,12 @@ def get_material(self,ob):
 
 def get_matnodes(self,ob):
 
-  mat = get_material(self,ob);
-  nt  = mat.node_tree;
+  mat=get_material(self,ob);
 
-  return nt;
+  if not mat:
+    return None;
+
+  return mat.node_tree;
 
 # ---   *   ---   *   ---
 # creates new

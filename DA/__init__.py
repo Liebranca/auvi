@@ -48,6 +48,9 @@ VERSION = 'v0.00.6a';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
+# TODO: load *.n3 from DAF
+
+# ---   *   ---   *   ---
 # used to reload the entire module
 # from blender's python console
 

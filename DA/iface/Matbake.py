@@ -172,6 +172,9 @@ def draw_matbox(self,ob,layout):
 
   nt=guts.get_matnodes(self,ob);
 
+  if not nt:
+    return;
+
   row=layout.row();
   row.label(text='TEXTURE SETTINGS');
 

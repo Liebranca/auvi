@@ -43,15 +43,18 @@ def get_selected():
 def get_active():
   return bpy.context.view_layer.objects.active;
 
+def deselect_all():
+  bpy.ops.object.select_all(
+    action='DESELECT'
+
+  );
+
 # ---   *   ---   *   ---
 # ^bat
 
 def select_all(ob,selection=[]):
 
-  bpy.ops.object.select_all(
-    action='DESELECT'
-
-  );
+  deselect_all();
 
   for child in selection:
     select(child);
