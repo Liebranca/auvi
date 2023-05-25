@@ -16,7 +16,7 @@
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.1b';
+VERSION = 'v0.00.2b';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
@@ -76,7 +76,7 @@ class Log_Tree:
     print(self.pad+str(me));
 
   def err(self,me):
-    self.line(f"\e[31;1m{me}\e[0m");
+    self.line(f"\033[31;1m{me}\033[0m");
 
   def beg_scope(self,me):
 

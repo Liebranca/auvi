@@ -29,7 +29,7 @@ from bpy.types import (
 
 from mathutils import Vector,Euler;
 
-from arcana import ARPATH;
+from arcana import ARPATH,AUVICACHE;
 from arcana.Tools import (
   isro,ns_path,chkdir,moo
 
@@ -49,7 +49,7 @@ AUTHOR  = 'IBN-3DILA';
 # ---   *   ---   *   ---
 # ROM
 
-CACHEPATH = ARPATH+'/.cache/auvi/node_tree/';
+CACHEPATH = AUVICACHE+'/node_tree/';
 DATAPATH  = ARPATH+'/auvi/data/';
 
 EXT='.n3';
@@ -205,7 +205,12 @@ class ShaderNodeTree_Bld:
 # saves node group to cache
 
   def to_cache(self,g):
-    DA_Node_Tree(self.name,g).pack();
+
+    DA_Node_Tree(
+      self.name,g,
+      is_group=True
+
+    ).pack();
 
 # ---   *   ---   *   ---
 # ^iv
@@ -213,13 +218,17 @@ class ShaderNodeTree_Bld:
   def from_cache(self):
 
     # make ice
-    g   = bpy.data.node_groups.new(self.name)
+    g   = bpy.data.node_groups.new(
+      self.name,
+      'ShaderNodeTree'
+
+    );
 
     # retrieve
     key = ns_path(self.name);
     d   = DA_Node_Tree.unpack(key);
 
-    load_tree(g,d);
+    load_tree(g,d,is_group=True);
 
     return g;
 
@@ -326,6 +335,27 @@ def load_node(dst,d):
   return nd;
 
 # ---   *   ---   *   ---
+# edge case: node in/out
+
+def load_group_io(port,src):
+
+  for o in src:
+
+    i=port.new(o['type'],o['name']);
+
+    for key in [
+
+      'default_value',
+
+      'min_value',
+      'max_value',
+
+    ]:
+
+      if hasattr(i,key):
+        setattr(i,key,prim_to_cplex(o[key]));
+
+# ---   *   ---   *   ---
 # ^reconnects links
 
 def load_node_links(dst,nd,d):
@@ -344,14 +374,29 @@ def load_node_links(dst,nd,d):
 
       );
 
+  update_scene();
+
 # ---   *   ---   *   ---
 # ^whole tree
 
-def load_tree(dst,ar):
+def load_tree(dst,ar,is_group=False):
+
+  gin,gout={},{};
+
+  if is_group:
+
+    gin,gout=ar[0],ar[1];
+
+    ar.remove(ar[0]);
+    ar.remove(ar[0]);
 
   # recreate all nodes
   dst.nodes.clear();
   nodes=[load_node(dst,d) for d in ar];
+
+  if is_group:
+    load_group_io(dst.inputs,gin);
+    load_group_io(dst.outputs,gout);
 
   # ^remake links
   for i,nd in enumerate(nodes):
@@ -363,12 +408,14 @@ def load_tree(dst,ar):
 
 class DA_Node_Tree:
 
-  def __init__(self,name,nt):
+  def __init__(self,name,nt,is_group=False):
 
     self.name = name;
     self.nt   = nt;
 
     self.mkftab();
+
+    self.is_group = is_group;
 
 # ---   *   ---   *   ---
 # make [name -> idex] fetch table
@@ -458,6 +505,42 @@ class DA_Node_Tree:
     return out;
 
 # ---   *   ---   *   ---
+# edge case: node group in/out
+
+  def get_group_io(self,port):
+
+    out=[];
+
+    for i in port:
+
+      t=typeof_node(i);
+      t=t.replace('Interface','');
+
+      o={
+
+        'type'  : t,
+        'name'  : i.name,
+
+      };
+
+      for key in [
+        'default_value',
+        'min_value',
+        'max_value',
+
+      ]:
+
+        if hasattr(i,key):
+          o[key]=cplex_to_prim(
+            getattr(i,key)
+
+          );
+
+      out.append(o);
+
+    return out;
+
+# ---   *   ---   *   ---
 # makes dict for rebuilding node
 
   def get_node_desc(self,nd):
@@ -480,19 +563,28 @@ class DA_Node_Tree:
 
   def get_desc(self):
 
-    return [
+    out=[];
+
+    if self.is_group:
+
+      out.extend([
+        self.get_group_io(self.nt.inputs),
+        self.get_group_io(self.nt.outputs),
+
+      ]);
+
+    out.extend([
       self.get_node_desc(nd)
       for nd in self.nt.nodes
 
-    ];
+    ]);
+
+    return out;
 
 # ---   *   ---   *   ---
 # ^wrapper, saves to file
 
   def pack(self):
-
-    if not node_tree_updated(self.name):
-      return;
 
     fpath=chkdir(CACHEPATH,self.name);
     stout=self.get_desc();

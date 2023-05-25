@@ -19,7 +19,8 @@ from .Log_Tree import *;
 # ---   *   ---   *   ---
 # ROM
 
-ARPATH=os.environ['ARPATH'];
+ARPATH    = os.environ['ARPATH'];
+AUVICACHE = ARPATH+'/.cache/auvi/';
 
 # ---   *   ---   *   ---
 # GBL

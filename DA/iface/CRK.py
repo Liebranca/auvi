@@ -15,12 +15,6 @@
 
 from .Meta import *;
 from ..guts.CRK import CRK;
-from arcana import ARPATH;
-
-# ---   *   ---   *   ---
-# ROM
-
-CACHEPATH=ARPATH+'/.cache/auvi/mesh/';
 
 # ---   *   ---   *   ---
 
@@ -37,33 +31,13 @@ class DA_OT_CRK_Run(Operator):
     ob    = C.active_object;
     crk   = C.scene.da_crk;
 
-    fpath = crk.outdir;
-
-    CRK.from_bmesh(ob,fpath);
+    CRK.from_bmesh(ob);
     return {'FINISHED'};
 
 # ---   *   ---   *   ---
 
 class DA_CRK(PropertyGroup):
-
-  matid: IntProperty(
-
-    name        = 'Material ID',
-
-    description =
-      "ID of DA material to use for mesh",
-
-    default     = 0,
-    min         = 0,
-    max         = (2**16)-1,
-
-  );
-
-  outdir: StringProperty(
-    description = "Path to output directory",
-    default     = CACHEPATH,
-
-  );
+  pass;
 
 # ---   *   ---   *   ---
 
@@ -99,12 +73,6 @@ class DA_CRK_Panel(Panel):
     crk    = context.scene.da_crk;
 
 # ---   *   ---   *   ---
-
-    row=layout.row();
-    row.prop(crk,"outdir",text='');
-
-    row=layout.row();
-    row.prop(crk,"matid");
 
     row=layout.row();
     row.operator(

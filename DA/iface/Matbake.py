@@ -298,12 +298,6 @@ class DA_Material_Bake(PropertyGroup):
 
   );
 
-  fpath: StringProperty(
-    description = "Path to output directory",
-    default     = ARPATH+'/.cache/auvi/material/',
-
-  );
-
   materials: CollectionProperty(
     type=DA_Material
 
@@ -495,9 +489,6 @@ class DA_Material_Panel(Panel):
     row=layout.row();
     row.label(text='AA Scale:');
     row.prop(mb,"render_scale",text='');
-
-    row=layout.row();
-    row.prop(mb,"fpath");
 
     row=layout.row();
     row.operator(

@@ -29,7 +29,7 @@ from bpy.types import (
 
 );
 
-from arcana import WLog;
+from arcana import WLog,AUVICACHE;
 from arcana.Xfer import DOS;
 
 from arcana.Tools import (
@@ -37,6 +37,7 @@ from arcana.Tools import (
   chkdir,
   dirof,
   basef,
+  nxbasef,
 
 );
 
@@ -46,11 +47,14 @@ from . import N3;
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.3b';
+VERSION = 'v0.00.5b';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
 # ROM
+
+CACHEPATH = AUVICACHE+'/material/';
+EXT       = '.joj';
 
 RENDER_ATTRS=[
 
@@ -476,7 +480,8 @@ def run(ob):
   Log=WLog.beget('MATBAKE');
 
   # get output path
-  fpath = chkdir(ob.da_matbake.fpath,ob.name);
+  name  = nxbasef(ob.name);
+  fpath = chkdir(CACHEPATH,name);
   files = [];
 
   # swap config
@@ -529,10 +534,12 @@ def run(ob):
 # ---   *   ---   *   ---
 # loads material from *.joj
 
-def load(ob,fpath):
+def load(ob,fname):
 
   global Log;
   Log=WLog.beget('MATLOAD');
+
+  fpath=CACHEPATH+'/'+ns_path(fname);
 
   if not joj_unpack(fpath):
     Log.line('ABORT');
@@ -583,7 +590,7 @@ def joj_unpack(fpath):
       base=fpath+f"_u{i}.png";
 
       if not os.path.exists(base):
-        Log.err('The JOJ has been corrupted');
+        Log.err('Error getting the JOJ');
         out=False;
 
         break;

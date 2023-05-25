@@ -21,8 +21,18 @@ from Avt.cwrap import (
 
 );
 
+from arcana import AUVICACHE;
 from arcana.Fmat import *;
-from arcana.Tools import basef,chkdir;
+
+from arcana.Tools import (
+
+  basef,
+  nxbasef,
+  chkdir,
+  ns_path
+
+);
+
 from arcana.Xfer import DOS;
 from arcana.Bytes import unfrac_u8,unfrac_u8_vec3;
 from arcana.Seph import *;
@@ -32,8 +42,27 @@ from .Meta import *;
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v1.00.2';
+VERSION = 'v1.00.3';
 AUTHOR  = 'IBN-3DILA';
+
+# ---   *   ---   *   ---
+# ROM
+
+CACHEPATH = AUVICACHE+'/mesh/';
+EXT       = '.crk';
+
+# ---   *   ---   *   ---
+# get vertex coordinate as key
+
+def vert_key(co):
+
+  return (
+
+    str(co[0]) + ','
+  + str(co[1]) + ','
+  + str(co[2])
+
+  );
 
 # ---   *   ---   *   ---
 
@@ -86,8 +115,8 @@ class CRK:
   # size of single raw vert
   DUMP_STRIDE=56;
 
-  # verts + indices + poses + matidex
-  DUMP_HED_SZ=2+2+2+2;
+  # verts + indices + poses
+  DUMP_HED_SZ=2+2+2;
 
   # file read modes
   UNPACK_BMESH={
@@ -96,6 +125,7 @@ class CRK:
   };
 
   pseph=Seph(Seph.POINT,8,8,8);
+  nseph=Seph(Seph.NORMAL,2,4,4);
 
 # ---   *   ---   *   ---
 # ice of this class used to
@@ -105,12 +135,99 @@ class CRK:
   def __init__(self,ob,hier=False):
 
     self.pose = None;
+    self.seam = {};
 
     self.ob   = ob;
     self.hier = hier;
 
   def __del__(self):
     self.clear_pose();
+
+# ---   *   ---   *   ---
+# get non-sharp seam edges
+
+  def get_seams(self):
+
+    me=self.pose.data;
+    self.seam={};
+
+    for e in me.edges:
+
+      if (
+
+      not e.use_seam
+      or  e.use_edge_sharp
+
+      ): continue;
+
+      # get verts of seam
+      vi    = e.vertices;
+      verts = [
+        me.vertices[vi[0]],
+        me.vertices[vi[1]]
+
+      ];
+
+      # use cords as key to normal
+      self.seam[vert_key(verts[0].co)]=(
+        verts[0].normal.copy()
+
+      );
+
+      self.seam[vert_key(verts[1].co)]=(
+        verts[1].normal.copy()
+
+      );
+
+# ---   *   ---   *   ---
+# get edge is non-sharp seam
+
+  def is_seam(self,e):
+
+    a,b=e.verts[:];
+
+    return (
+        vert_key(a.co) in self.seam
+    and vert_key(b.co) in self.seam
+
+    );
+
+# ---   *   ---   *   ---
+# ^get smooth normal for verts
+# of a non-sharp seams
+#
+# else get vertex normal
+
+  def get_vert_normal(self,a):
+
+    key=vert_key(a.co);
+
+    if key in self.seam:
+      return self.seam[key];
+
+    return a.normal;
+
+# ---   *   ---   *   ---
+# split at non-sharp seam edges
+
+  def seam_split(self):
+
+    me=self.pose.data;
+    bm=bmesh.new();
+    bm.from_mesh(me);
+
+    seams=[
+
+      e for e in bm.edges
+
+      if  e.seam
+      and self.is_seam(e)
+
+    ];
+
+    bmesh.ops.split_edges(bm,edges=seams);
+    bm.to_mesh(me);
+    bm.free();
 
 # ---   *   ---   *   ---
 # apply all mods/deforms/shapes
@@ -128,6 +245,9 @@ class CRK:
 
     select_all(self.ob,children);
     self.pose=duplibake(True,True);
+
+    self.get_seams();
+    self.seam_split();
 
     n=self.ob.name+'.CRKP';
     self.pose.name=self.pose.data.name=n;
@@ -162,6 +282,7 @@ class CRK:
         'uv'   : [],
 
         'face' : [],
+        'n'    : [],
 
       };
 
@@ -176,6 +297,11 @@ class CRK:
 
         bl_prim['uv'].append((
           vert[3],vert[4],
+
+        ));
+
+        bl_prim['n'].append((
+          vert[5],-vert[6],vert[7]
 
         ));
 
@@ -243,6 +369,8 @@ class CRK:
           uf.append(unfrac_u8(vert['UVX']));
           uf.append(1.0-unfrac_u8(vert['UVY']));
 
+          uf.extend(CRK.nseph.unpack(vert['N']));
+
           verts.append(uf);
 
         for _ in range(p['icount']):
@@ -262,10 +390,11 @@ class CRK:
 # THEN invoke bmesh2crk
 
   @staticmethod
-  def from_bmesh(ob,fpath,hier=False):
+  def from_bmesh(ob,hier=False):
 
     self  = CRK(ob,hier);
-    fpath = chkdir(fpath,ob.name);
+    name  = nxbasef(ob.name);
+    fpath = chkdir(CACHEPATH,name);
 
     # generate temp
     files=self.bake(fpath);
@@ -290,7 +419,6 @@ class CRK:
     self.bake_pose();
 
     # placeholder
-    mat   = 0;
     poses = 1;
 
     # remember files created
@@ -299,7 +427,7 @@ class CRK:
 
     # serialize metadata
     with open(files[-1],'wb+') as f:
-      f.write(self.bl_write_meta(poses,mat));
+      f.write(self.bl_write_meta(poses));
 
     # ^serialize each pose
     for i in range(0,poses):
@@ -315,7 +443,7 @@ class CRK:
 # ---   *   ---   *   ---
 # ^takes note of metadata
 
-  def bl_write_meta(self,poses,mat):
+  def bl_write_meta(self,poses):
 
     me    = self.pose.data;
     hbuff = bytearray(CRK.DUMP_HED_SZ);
@@ -323,7 +451,6 @@ class CRK:
     hbuff[0:2]=ftb(wide,[len(me.vertices)]);
     hbuff[2:4]=ftb(wide,[len(me.polygons)*3]);
     hbuff[4:6]=ftb(wide,[poses]);
-    hbuff[6:8]=ftb(wide,[mat]);
 
     return hbuff;
 
@@ -397,13 +524,14 @@ class CRK:
         vbuff[svi +  8 : svi + 12]=ftb(real,[-co[1]]);
 
         # write normals
-        n=vert.normal;
+        n=self.get_vert_normal(vert);
         vbuff[svi + 12 : svi + 16]=ftb(real,[ n[0]]);
         vbuff[svi + 16 : svi + 20]=ftb(real,[ n[2]]);
         vbuff[svi + 20 : svi + 24]=ftb(real,[-n[1]]);
 
         # write uvs
         uv=loops[li].uv;
+        uv[1]=1-uv[1];
         vbuff[svi + 48 : svi + 52]=ftb(real,[uv[0]]);
         vbuff[svi + 52 : svi + 56]=ftb(real,[uv[1]]);
 
@@ -451,10 +579,12 @@ class CRK:
 # makes bmesh from crk file
 
   @staticmethod
-  def load(fpath,mode=UNPACK_BMESH,name=""):
+  def load(fname,mode=UNPACK_BMESH,name=""):
+
+    fpath=CACHEPATH+'/'+ns_path(fname)+EXT;
 
     if not len(name):
-      name=basef(name);
+      name=basef(fpath);
 
     if name in bpy.data.meshes:
       bpy.data.meshes.remove(
@@ -484,9 +614,10 @@ class CRK:
     verts = src[i]['co'];
     faces = src[i]['face'];
     uvs   = src[i]['uv'];
+    csn   = src[i]['n'];
 
     if i==0:
-      self.ice_t(verts,faces,uvs);
+      self.ice_t(verts,faces,uvs,csn);
 
     else:
       make_shape(self.ob,verts,'pose_'+str(i));
@@ -502,7 +633,7 @@ class CRK:
 # ---   *   ---   *   ---
 # instance default pose
 
-  def ice_t(self,verts,faces,uvs):
+  def ice_t(self,verts,faces,uvs,csn):
 
     me  = self.ob.data;
 
@@ -521,5 +652,17 @@ class CRK:
 
         loop=me.uv_layers.active.data[loop];
         loop.uv[:]=uvs[vi][:];
+
+    me.use_auto_smooth=True;
+    me.normals_split_custom_set(
+      [(0, 0, 0) for l in me.loops]
+
+    );
+
+    # it takes GENIUS to name things this long
+    me.normals_split_custom_set_from_vertices(
+      csn
+
+    );
 
 # ---   *   ---   *   ---
