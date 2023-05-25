@@ -13,7 +13,17 @@
 # ---   *   ---   *   ---
 # deps
 
+from Avt.cwrap import *;
+
 # ---   *   ---   *   ---
+# info
+
+VERSION = 'v0.00.2b';
+AUTHOR  = 'IBN-3DILA';
+
+# ---   *   ---   *   ---
+# typenames added to this space
+# so sizeof.[type] == sizeof(type);
 
 class sizeof:
   pass;

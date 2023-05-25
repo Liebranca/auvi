@@ -42,7 +42,7 @@ from .Meta import *;
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v1.00.3';
+VERSION = 'v1.00.4';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
@@ -73,12 +73,11 @@ class CRK:
     'CRK_VERTEX',[
 
       'X',1,'Y',1,'Z',1,
-      'N',1,'T',1,'B',1,
-
       'UVX',1,'UVY',1,
 
-      'ID',   2,
-      'BONE', 2,
+      'PAD',1,
+
+      'N',2,'T',2,'B',2,
 
     ],
 
@@ -125,7 +124,7 @@ class CRK:
   };
 
   pseph=Seph(Seph.POINT,8,8,8);
-  nseph=Seph(Seph.NORMAL,2,4,4);
+  nseph=Seph(Seph.NORMAL,2,8,8);
 
 # ---   *   ---   *   ---
 # ice of this class used to
@@ -169,15 +168,11 @@ class CRK:
       ];
 
       # use cords as key to normal
-      self.seam[vert_key(verts[0].co)]=(
-        verts[0].normal.copy()
+      k0=vert_key(verts[0].co);
+      k1=vert_key(verts[1].co);
 
-      );
-
-      self.seam[vert_key(verts[1].co)]=(
-        verts[1].normal.copy()
-
-      );
+      self.seam[k0]=verts[0].normal.copy();
+      self.seam[k1]=verts[1].normal.copy();
 
 # ---   *   ---   *   ---
 # get edge is non-sharp seam
@@ -301,7 +296,7 @@ class CRK:
         ));
 
         bl_prim['n'].append((
-          vert[5],-vert[6],vert[7]
+          vert[5],-vert[7],vert[6]
 
         ));
 
@@ -370,7 +365,6 @@ class CRK:
           uf.append(1.0-unfrac_u8(vert['UVY']));
 
           uf.extend(CRK.nseph.unpack(vert['N']));
-
           verts.append(uf);
 
         for _ in range(p['icount']):
@@ -400,7 +394,7 @@ class CRK:
     files=self.bake(fpath);
 
     # invoke C-side
-    DOS('bmesh2crk',[fpath]);
+    print(DOS('bmesh2crk',[fpath]));
 
     # ^clean temp
     for f in files:
@@ -654,10 +648,6 @@ class CRK:
         loop.uv[:]=uvs[vi][:];
 
     me.use_auto_smooth=True;
-    me.normals_split_custom_set(
-      [(0, 0, 0) for l in me.loops]
-
-    );
 
     # it takes GENIUS to name things this long
     me.normals_split_custom_set_from_vertices(

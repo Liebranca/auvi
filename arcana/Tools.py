@@ -85,7 +85,10 @@ def nxbasef(s):
   s=basef(s);
   l=s.split('.');
 
-  return '.'.join(l[0:-1]);
+  if len(l) > 1:
+    return '.'.join(l[0:-1]);
+
+  return s;
 
 # ---   *   ---   *   ---
 # gives base of fpath

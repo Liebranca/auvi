@@ -44,7 +44,7 @@ from .Bytes import (
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.1b';
+VERSION = 'v0.00.2b';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
@@ -233,10 +233,10 @@ class Seph:
 # ---   *   ---   *   ---
 # ^undo
 
-  def unpack(self,b):
+  def unpack(self,b,bug=False):
 
     if self.mode == Seph.NORMAL:
-      return self.angle_unpack(b);
+      return self.angle_unpack(b).normalized();
 
     else:
 
@@ -245,6 +245,6 @@ class Seph:
 
       n = self.angle_unpack(b);
 
-      return n*r;
+      return n.normalized()*r;
 
 # ---   *   ---   *   ---

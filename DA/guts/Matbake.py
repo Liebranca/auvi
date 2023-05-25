@@ -497,6 +497,7 @@ def run(ob):
   for t in BAKE_TYPES.keys():
     files.append(bake_image(ob,t,fpath));
 
+
   # ^pack images
   Log.line('Getting the JOJ');
   errme=DOS(
