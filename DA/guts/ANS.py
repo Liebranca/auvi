@@ -13,13 +13,20 @@
 # ---   *   ---   *   ---
 # deps
 
+from arcana import AUVICACHE;
+
+# ---   *   ---   *   ---
+# ROM
+
+CACHEPATH = AUVICACHE+'/ans/';
+
 # ---   *   ---   *   ---
 # info
 
 class ANS:
 
-  VERSION = 'v0.00.1b';
-  AUTHOR  = 'IBN-3DILA';
+  VERSION   = 'v0.00.1b';
+  AUTHOR    = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
 # cstruc
