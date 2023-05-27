@@ -233,21 +233,7 @@ def run():
     char.action    = anim;
     i,length,names = render(base,type,i);
 
-    # shorten animkey
-    tag=anim.name;
-    tag=tag.replace(ob.data.name + '::','');
 
-    plout=(
-
-      plout
-
-    + f"{j} {tag} "
-    + f"{tot} {tot+length} "
-    + f"{length}"
-
-    + "\n"
-
-    );
 
     joj_args['files'].extend(names);
 

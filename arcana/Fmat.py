@@ -16,12 +16,6 @@
 from Avt.cwrap import *;
 
 # ---   *   ---   *   ---
-# info
-
-VERSION = 'v0.00.2b';
-AUTHOR  = 'IBN-3DILA';
-
-# ---   *   ---   *   ---
 # typenames added to this space
 # so sizeof.[type] == sizeof(type);
 
@@ -29,8 +23,15 @@ class sizeof:
   pass;
 
 # ---   *   ---   *   ---
+# info
 
 class Fmat:
+
+  VERSION = 'v0.00.2b';
+  AUTHOR  = 'IBN-3DILA';
+
+# ---   *   ---   *   ---
+# cstruc
 
   def __init__(self,name,table,total=0):
 
@@ -57,6 +58,8 @@ class Fmat:
     setattr(sizeof,name,sumof);
 
 # ---   *   ---   *   ---
+# lookup sizes of fields
+# and whole struct
 
   def field_sz(self,key):
     return sizeof.__dict__[
@@ -71,6 +74,7 @@ class Fmat:
     ];
 
 # ---   *   ---   *   ---
+# read sizeof(ice) from file
 
   def read(self,file):
 

@@ -13,64 +13,112 @@
 # ---   *   ---   *   ---
 # deps
 
+from arcana.Mod import bl_kls_merge;
+
 from .Meta import *;
 from . import Attach,Char,State;
 
 # ---   *   ---   *   ---
+# declare class twice so it can
+# find it's own methods...
+#
+# GENIUS strikes again
 
-def get_attach_equipped(self,C):
-
-  l    = ['None'];
-  ob   = C.object;
-
-  char = ob.data.da_char;
-
-  for slot in Attach.SLOTS:
-    piece=eval('char.'+slot);
-
-    if(piece):
-      l.append(slot);
-
-  return [(x.upper(),x,'') for x in l];
+class DA_Anim(PropertyGroup):
 
 # ---   *   ---   *   ---
+# cstruc
 
-def set_anim(self,C):
-  ob=C.object;
-  Char.set_anim(ob.data.da_char,C);
+  def new(self):
+    self.ref=None;
+    self.find_ref();
+
+# ---   *   ---   *   ---
+# get action assoc with DA_Anim
+
+  def find_ref(self):
+
+    if self.ref:
+      return;
+
+    for act in bpy.data.actions:
+      if act.da_anim == self:
+        self.ref=act;
+        break;
+
+# ---   *   ---   *   ---
+# get adjusted framerange of action
+
+  def get_length(self):
+
+    self.find_action();
+
+    beg,end  = self.ref.frame_range;
+    end     -= (self.is_loop==True);
+
+    return beg,end;
 
 # ---   *   ---   *   ---
 # bit mask helpers
 
-def get_anim_state(self):
+  def get_state(self):
 
-  l=[];
+    l=[];
 
-  for i in range(State.MASK_SZ):
-    b=1<<i;
-    l.append((self.state_mask&b)==b);
+    for i in range(State.MASK_SZ):
+      b=1<<i;
+      l.append((self.state_mask&b)==b);
 
-  return l;
+    return l;
 
-def set_anim_state(self,values):
+  def set_state(self,values):
 
-  for i in range(State.MASK_SZ):
-    if(values[i]):
-      self.state_mask|=1<<i;
+    for i in range(State.MASK_SZ):
+      if(values[i]):
+        self.state_mask|=1<<i;
 
-    else:
-      self.state_mask&=~ (1<<i);
+      else:
+        self.state_mask&=~ (1<<i);
 
 # ---   *   ---   *   ---
+# ^update self accto mask
 
-def apply_anim_state(self,C):
+  def apply_state(self,C):
 
-  ob   = C.object;
-  char = ob.data.da_char;
+    ob   = C.object;
+    char = ob.data.da_char;
 
-  for i in range(State.MASK_SZ):
-    if(self.state_mask&(1<<i)):
-      State.apply(char.states[i]);
+    for i in range(State.MASK_SZ):
+      if(self.state_mask&(1<<i)):
+        State.apply(char.states[i]);
+
+# ---   *   ---   *   ---
+# give list of names
+# of all attachments
+
+  def get_attach_equipped(self,C):
+
+    l  = ['None'];
+    ob = C.object;
+
+    if hasattr(ob.data.da_char):
+
+      char=ob.data.da_char;
+
+      for slot in Attach.SLOTS:
+        piece=eval('char.'+slot);
+
+        if piece:
+          l.append(slot);
+
+    return [(x.upper(),x,'') for x in l];
+
+# ---   *   ---   *   ---
+# updates self on attr changes
+
+  def set_anim(self,C):
+    ob=C.object;
+    Char.set_anim(ob.data.da_char,C);
 
 # ---   *   ---   *   ---
 
@@ -92,7 +140,7 @@ class DA_Anim(PropertyGroup):
       "Which attachment will be used "\
       "to calculate the attack's hitbox.",
 
-    items       = get_attach_equipped,
+    items       = DA_Anim.get_attach_equipped,
     default     = 0,
 
   );
@@ -102,7 +150,7 @@ class DA_Anim(PropertyGroup):
     description = "Adjust frame range for looping",
 
     default     = True,
-    update      = set_anim,
+    update      = DA_Anim.set_anim,
 
   );
 
@@ -111,7 +159,7 @@ class DA_Anim(PropertyGroup):
     description = "Enables attachment shapekeys",
 
     default     = False,
-    update      = set_anim,
+    update      = DA_Anim.set_anim,
 
   );
 
@@ -124,7 +172,7 @@ class DA_Anim(PropertyGroup):
       "animation to come from other actions",
 
     default     = False,
-    update      = set_anim,
+    update      = DA_Anim.set_anim,
 
   );
 
@@ -135,18 +183,18 @@ class DA_Anim(PropertyGroup):
 
     type        = Action,
     poll        = Char.anim_kls_match,
-    update      = set_anim
+    update      = DA_Anim.set_anim
 
   );
 
   trans_end: PointerProperty(
     name        = 'End',
     description =
-      "Animation being transitioned to",
+      "Animation being transitioned into",
 
     type        = Action,
     poll        = Char.anim_kls_match,
-    update      = set_anim
+    update      = DA_Anim.set_anim
 
   );
 
@@ -158,7 +206,7 @@ class DA_Anim(PropertyGroup):
     default     = 0,
     min         = 0,
 
-    update      = set_anim,
+    update      = DA_Anim.set_anim,
 
   );
 
@@ -169,12 +217,19 @@ class DA_Anim(PropertyGroup):
 
     size    = State.MASK_SZ,
 
-    get     = get_anim_state,
-    set     = set_anim_state,
+    get     = DA_Anim.get_state,
+    set     = DA_Anim.set_state,
 
-    update  = apply_anim_state,
+    update  = DA_Anim.apply_state,
 
   );
+
+  action: PointerProperty(type=Action);
+
+# ---   *   ---   *   ---
+# """fixes""" for GENIUS
+
+  exec(bl_kls_merge('DA_Anim'));
 
 # ---   *   ---   *   ---
 

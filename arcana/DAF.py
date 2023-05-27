@@ -13,7 +13,7 @@
 # ---   *   ---   *   ---
 # deps
 
-import os;
+import os,re;
 
 from .Xfer import DOS;
 from .Tools import dirof;
@@ -73,6 +73,41 @@ class DAF:
 
   def has(self,f):
     return f in self.files;
+
+# ---   *   ---   *   ---
+# ^similar, check if *part* of
+# name is present in ftab
+#
+# used to warn user about
+# replacing/pushing files
+
+  def replchk(self,f):
+
+    # remove extension
+    d={
+
+      re.sub(r'\..*$','',key):0
+      for key in self.files.keys()
+
+    };
+
+    # remove suffix
+    d=[
+
+      re.sub(r'_[A-F0-9]+$','',key)
+      for key in d.keys()
+
+    ];
+
+    # ^count instances of name
+    d={key:d.count(key) for key in d};
+
+    # give blank suffix on no match
+    if f not in d:
+      return 0;
+
+    # ^else idex of next suffix
+    return d[f];
 
 # ---   *   ---   *   ---
 # handles reporting of invocations

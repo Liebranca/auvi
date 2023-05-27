@@ -30,7 +30,7 @@ from .guts import (
 
 from .iface import (
 
-  Meta,
+  Meta,AL,
 
   Apparel,Attach,
   State,Char,Anim,
@@ -66,6 +66,8 @@ def update():
   # ^re-register
   bpy.da_blocks={};
   for mod in [
+
+    AL,
 
     Apparel,Attach,
     State,Char,Anim,

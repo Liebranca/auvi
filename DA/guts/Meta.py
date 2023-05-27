@@ -25,6 +25,26 @@ def update_scene():
 def link_object(ob):
   bpy.context.collection.objects.link(ob);
 
+def new_object(name,me):
+  ob=bpy.data.objects.new(name,me);
+  link_object(ob);
+
+  return ob;
+
+def link_collection(c):
+  bpy.context.scene.collection.children.link(c);
+
+def new_collection(name):
+
+  c=bpy.data.collections.new(name);
+
+  link_collection(c);
+  update_scene();
+
+  c.da_al.new();
+
+  return c;
+
 def get_depsgraph():
   return bpy.context.evaluated_depsgraph_get();
 

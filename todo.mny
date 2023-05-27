@@ -1,11 +1,17 @@
->auvi v1.01.0
+>auvi v1.01.1
+
+*> Asset layer
+~ Generate lowpoly
+~ Animation manager
+~ Material manager
 
 *> Asset exporter
 x Write bmesh to CRK
 x Read CRK to bmesh
-~ Write material to JOJ
+x Write material to JOJ
 ~ Combine JOJ and CRK into DAF
-~ Multiple assets per archive
+x Multiple assets per archive
+~ Exporting from AL
 
 *>DA
 x Autoload
@@ -15,7 +21,7 @@ x Bodypart system
 x ^ Dynamic masking
 x ^ Apparel slots
 x ^ Attachment slots
-x ^^ Mounts
+~ ^^ Mounts
 x States
 
 *>Anim tools

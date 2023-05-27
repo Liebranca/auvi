@@ -142,3 +142,26 @@ def chkdir(root,f):
   return root+key;
 
 # ---   *   ---   *   ---
+# generate range of hex
+# numbers converted to strings
+
+def hexstr_range(beg=0,end=None,step=1,w=1):
+
+  if end==None:
+    end=beg;
+    beg=0;
+
+  out=[];
+
+  for i in range(beg,end,step):
+
+    n='';
+    for c in range(w*2):
+      n=n+"%X"%(i&0xF);i=i>>4;
+
+    n=n[::-1];
+    out.append(n);
+
+  return out;
+
+# ---   *   ---   *   ---

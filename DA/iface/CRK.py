@@ -83,28 +83,18 @@ class DA_CRK_Panel(Panel):
     );
 
 # ---   *   ---   *   ---
+# generate boilerplate
 
-def register():
+exec(DA_iface_module("""
 
-  bpy.da_blocks[__file__]=unregister;
+$:rclass;>
+  DA_CRK
+  DA_OT_CRK_Run
+  DA_CRK_Panel
 
-  register_class(DA_CRK);
-  register_class(DA_OT_CRK_Run);
-  register_class(DA_CRK_Panel);
+$:bind;>
+  Scene.da_crk: DA_CRK
 
-  Scene.da_crk=PointerProperty(
-    type=DA_CRK
-
-  );
-
-# ---   *   ---   *   ---
-
-def unregister():
-
-  del Scene.da_crk;
-
-  unregister_class(DA_CRK);
-  unregister_class(DA_OT_CRK_Run);
-  unregister_class(DA_CRK_Panel);
+"""));
 
 # ---   *   ---   *   ---

@@ -469,8 +469,7 @@ def set_anim(self,C):
 # ---   *   ---   *   ---
 # set frame range
 
-  beg,end=self.action.frame_range;
-  end-=act.da_anim.is_loop==True;
+  beg,end=da_anim.get_length();
 
   C.scene.frame_start,C.scene.frame_end=\
     int(beg),int(end);
