@@ -192,6 +192,8 @@ class DA_AL(PropertyGroup):
 
   def write(self):
 
+    out   = "";
+
     daf   = self.get_daf();
     files = self.get_files(daf);
 
@@ -205,7 +207,15 @@ class DA_AL(PropertyGroup):
 
     # ^input error
     else:
-      print("DAF WRITE ABORTED");
+
+      out=(
+
+        "DAF write aborted; "
+      + "see console for details"
+
+      );
+
+    return out;
 
 # ---   *   ---   *   ---
 # get list of files created by
@@ -223,7 +233,11 @@ class DA_AL(PropertyGroup):
     exts  = ['.crk','.ans','.joj'];
 
     for path,ext in zip(paths,exts):
-      out.append(chkdir(path,name+ext));
+
+      f=chkdir(path,name+ext)
+
+      if os.path.exists(f):
+        out.append();
 
     return out;
 
@@ -340,8 +354,12 @@ class DA_OT_AL_Write(Operator):
   );
 
   def execute(self,C):
+
     al=C.collection.da_al;
-    al.write();
+    me=al.write();
+
+    if len(me):
+      self.report({'INFO'},me);
 
     return {'FINISHED'};
 
@@ -419,6 +437,10 @@ class DA_AL_Panel(Panel):
 
     self.draw_imp_props(C);
 
+# ---   *   ---   *   ---
+# separated this section
+# in case we add others
+
   def draw_imp_props(self,C):
 
     layout = self.layout;
@@ -452,6 +474,7 @@ class DA_AL_Panel(Panel):
     );
 
 # ---   *   ---   *   ---
+# create register/unregister
 
 exec(DA_iface_module("""
 

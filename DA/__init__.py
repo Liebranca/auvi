@@ -35,6 +35,7 @@ from .iface import (
   Apparel,Attach,
   State,Char,Anim,
 
+  Material,
   Spritebake,Matbake,
 
   CRK,
@@ -44,7 +45,7 @@ from .iface import (
 # ---   *   ---   *   ---
 # info
 
-VERSION = 'v0.00.6a';
+VERSION = 'v0.00.7a';
 AUTHOR  = 'IBN-3DILA';
 
 # ---   *   ---   *   ---
@@ -72,6 +73,7 @@ def update():
     Apparel,Attach,
     State,Char,Anim,
 
+    Material,
     Spritebake,Matbake,
 
     CRK,
